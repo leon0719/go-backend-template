@@ -41,20 +41,21 @@ func (h *handler) live(w http.ResponseWriter, r *http.Request) {
 // /api/v1, and documenting it under that base path would misrepresent the
 // actual served URL.
 func (h *handler) ready(w http.ResponseWriter, r *http.Request) {
-	// When dependencies are not configured (e.g., in unit tests),
-	// return 200 OK to indicate the service itself is running.
-	if h.pool == nil || h.rdb == nil {
-		respond.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
-		return
-	}
+	// A nil dependency means "not configured" (e.g. in unit tests) and is
+	// skipped rather than failing the probe. Each configured dependency is
+	// checked independently, so both failure branches are reachable.
 	ctx := r.Context()
-	if err := h.pool.Ping(ctx); err != nil {
-		respond.JSON(w, http.StatusServiceUnavailable, map[string]string{"status": "db_unreachable"})
-		return
+	if h.pool != nil {
+		if err := h.pool.Ping(ctx); err != nil {
+			respond.JSON(w, http.StatusServiceUnavailable, map[string]string{"status": "db_unreachable"})
+			return
+		}
 	}
-	if err := h.rdb.Ping(ctx).Err(); err != nil {
-		respond.JSON(w, http.StatusServiceUnavailable, map[string]string{"status": "redis_unreachable"})
-		return
+	if h.rdb != nil {
+		if err := h.rdb.Ping(ctx).Err(); err != nil {
+			respond.JSON(w, http.StatusServiceUnavailable, map[string]string{"status": "redis_unreachable"})
+			return
+		}
 	}
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
