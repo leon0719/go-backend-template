@@ -36,6 +36,23 @@ type Config struct {
 	JWTSecret   string `env:"JWT_SECRET,required"`
 	LogLevel    string `env:"LOG_LEVEL" envDefault:"info"`
 
+	// CORSAllowedOrigins is an exact-match allow-list of browser origins
+	// (comma-separated, e.g. "https://app.example.com,https://admin.example.com").
+	// Empty (the default) disables CORS entirely — no CORS headers are
+	// emitted, which is the safe default for a template.
+	CORSAllowedOrigins []string `env:"CORS_ALLOWED_ORIGINS" envSeparator:","`
+
+	// TrustedProxies lists CIDRs (comma-separated) whose requests are allowed
+	// to set X-Forwarded-For. Only when the direct peer falls inside one of
+	// these ranges is the header used to derive the client IP; otherwise the
+	// header is ignored and r.RemoteAddr wins. Empty (the default) means the
+	// server assumes it is directly internet-facing.
+	//
+	// SECURITY: setting this too broadly (e.g. 0.0.0.0/0) lets any client
+	// spoof its IP and bypass IP rate limiting. Leaving it empty while
+	// running behind a reverse proxy collapses all clients into one bucket.
+	TrustedProxies []string `env:"TRUSTED_PROXIES" envSeparator:","`
+
 	ArticlePublishedWebhookURL string `env:"ARTICLE_PUBLISHED_WEBHOOK_URL" envDefault:""`
 }
 

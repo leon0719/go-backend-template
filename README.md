@@ -98,5 +98,5 @@ See [docs/backend-standards.md](docs/backend-standards.md) for conventions.
 - No cross-worker SSE broadcast (single-instance only in this version)
 - No session-count limit on concurrent logins per user
 - No idempotency-key support on writes
-- No CORS middleware configured by default
+- CORS middleware exists but is **disabled by default** (`CORS_ALLOWED_ORIGINS` is empty) — opt in per origin
 - No alerting/error-tracking integration (see [docs/alerting.md](docs/alerting.md))

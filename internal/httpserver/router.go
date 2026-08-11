@@ -27,11 +27,46 @@ type Deps struct {
 	ArticlesSvc    *articles.Service
 	WriteRateLimit *middleware.RateLimiter
 	Redis          *redis.Client
+
+	// ExtraRoutes is an optional hook to mount additional routes on the same
+	// middleware chain without editing this file. It is also what
+	// router_test.go uses to mount a deliberately-panicking route and assert
+	// the Recoverer behavior end-to-end.
+	ExtraRoutes func(chi.Router)
 }
 
+// NewRouter assembles the chi router and the global middleware chain.
+//
+// Order matters and follows the design spec:
+//
+//	RequestID  — mints/propagates X-Request-ID first so everything below can log it
+//	RealIP     — resolves the client IP (trusted-proxy aware) for logging + rate limits
+//	Recoverer  — turns panics into the standard 500 envelope
+//	SlogLogger — logs the final status (including any 500 written by Recoverer)
+//	CORS       — no-op unless CORS_ALLOWED_ORIGINS is set
+//
+// Route-specific middleware (RateLimit / JWTAuth) is mounted per-route by the
+// individual RegisterRoutes functions.
 func NewRouter(deps Deps) http.Handler {
 	r := chi.NewRouter()
+
+	trustedProxies, err := middleware.ParseTrustedProxies(deps.Config.TrustedProxies)
+	if err != nil {
+		// Misconfigured TRUSTED_PROXIES silently degrades rate limiting, so
+		// surface it loudly and fall back to "trust nothing" (RemoteAddr).
+		logger := deps.Logger
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Error("invalid TRUSTED_PROXIES, ignoring X-Forwarded-For entirely", "error", err)
+		trustedProxies = nil
+	}
+
 	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP(trustedProxies))
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.SlogLogger)
+	r.Use(middleware.CORS(deps.Config.CORSAllowedOrigins))
 
 	// Health endpoints are unversioned infra probes mounted at the router root.
 	// They are intentionally excluded from the generated OpenAPI/Swagger spec
@@ -54,6 +89,10 @@ func NewRouter(deps Deps) http.Handler {
 	r.Route("/api/v1/realtime", func(rr chi.Router) {
 		realtime.RegisterRoutes(rr, deps.Config.JWTSecret)
 	})
+
+	if deps.ExtraRoutes != nil {
+		deps.ExtraRoutes(r)
+	}
 
 	return r
 }

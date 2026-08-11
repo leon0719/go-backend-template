@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
+	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/hibiken/asynq"
 
@@ -19,6 +23,9 @@ func main() {
 	}
 
 	logger := logging.New(cfg)
+	// Install as the process-wide default so packages logging via the slog
+	// package-level functions use the configured handler (see cmd/api).
+	slog.SetDefault(logger)
 
 	redisOpt, err := asynq.ParseRedisURI(cfg.RedisURL)
 	if err != nil {
@@ -31,9 +38,22 @@ func main() {
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(tasks.TypeArticlePublished, articles.NewPublishedTaskHandler(cfg.ArticlePublishedWebhookURL))
 
-	logger.Info("starting worker")
-	if err := srv.Run(mux); err != nil {
-		logger.Error("worker exited", "error", err)
+	// srv.Start is non-blocking (unlike srv.Run, which installs asynq's own
+	// signal handling); using it lets us drain in-flight tasks explicitly on
+	// SIGINT/SIGTERM instead of dropping them at deploy time.
+	if err := srv.Start(mux); err != nil {
+		logger.Error("worker failed to start", "error", err)
 		os.Exit(1)
 	}
+	logger.Info("worker started")
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	<-ctx.Done()
+
+	logger.Info("shutdown signal received, draining in-flight tasks")
+	// Shutdown stops fetching new tasks and waits for in-flight handlers to
+	// finish (bounded by asynq.Config.ShutdownTimeout, 8s by default).
+	srv.Shutdown()
+	logger.Info("worker stopped")
 }

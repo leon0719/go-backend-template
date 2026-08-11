@@ -12,6 +12,8 @@ Read by `internal/config.Config` (full app: `cmd/api`, `cmd/worker`). Two narrow
 | `REDIS_URL` | yes | — | Redis connection string (rate limiting + asynq) |
 | `JWT_SECRET` | yes | — | HMAC secret for access tokens |
 | `LOG_LEVEL` | no | `info` | `debug`/`info`/`warn`/`error` |
+| `CORS_ALLOWED_ORIGINS` | no | `""` | Comma-separated exact-match browser origins. Empty = CORS disabled (no headers emitted) |
+| `TRUSTED_PROXIES` | no | `""` | Comma-separated CIDRs allowed to set `X-Forwarded-For`. Empty = header ignored, `RemoteAddr` used |
 | `ARTICLE_PUBLISHED_WEBHOOK_URL` | no | `""` | If empty, the publish task is a no-op |
 
 `DATABASE_URL`/`REDIS_URL`/`JWT_SECRET` are marked required by struct tags (`env:"...,required"`) — `config.Load()` returns an error if they're unset. In the dev Compose stack you don't need to set these yourself: `docker/docker-compose.dev.yml` supplies working defaults directly in its `environment:` block, and `.env.local` (if present) is loaded on top and can override them.

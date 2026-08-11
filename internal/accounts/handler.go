@@ -3,7 +3,6 @@ package accounts
 import (
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -15,15 +14,14 @@ import (
 
 var validate = validator.New()
 
-// authRateLimitKey derives a per-client-IP rate-limit key from the request,
-// preferring the parsed host portion of RemoteAddr and falling back to the
-// raw value if it isn't in host:port form.
+// authRateLimitKey derives a per-client-IP rate-limit key from the request.
+//
+// It uses middleware.ClientIP rather than r.RemoteAddr directly: behind the
+// bundled Caddy reverse proxy RemoteAddr is always the proxy's container IP,
+// which would collapse every internet client into one shared bucket. See
+// middleware.RealIP for the X-Forwarded-For trust contract (TRUSTED_PROXIES).
 func authRateLimitKey(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
-	return "auth:" + host
+	return "auth:" + middleware.ClientIP(r)
 }
 
 func RegisterRoutes(r chi.Router, svc *Service, jwtSecret string, rl *middleware.RateLimiter) {

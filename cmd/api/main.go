@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/hibiken/asynq"
@@ -36,6 +40,15 @@ const (
 
 	articlesWriteRateLimit       = 30
 	articlesWriteRateLimitWindow = 60 * time.Second
+)
+
+// HTTP server timeouts. See the http.Server literal in main for why
+// WriteTimeout is intentionally left unset (SSE).
+const (
+	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 30 * time.Second
+	idleTimeout       = 120 * time.Second
+	shutdownGrace     = 20 * time.Second
 )
 
 // @title           go-backend-template API
@@ -69,9 +82,17 @@ func main() {
 	}
 
 	logger := logging.New(cfg)
+	// Install as the process-wide default so packages that log via the slog
+	// package-level functions (e.g. the middleware chain, ratelimit's
+	// fail-open path) use the configured handler/level rather than the stdlib
+	// default text handler.
+	slog.SetDefault(logger)
 	logger.Info("starting", "commit", GitCommitSHA)
 
-	ctx := context.Background()
+	// Shut down gracefully on SIGINT/SIGTERM so in-flight requests finish and
+	// the deferred pool/asynq client Close calls actually run.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		logger.Error("connect db", "error", err)
@@ -117,9 +138,45 @@ func main() {
 	})
 
 	addr := ":" + strconv.Itoa(cfg.Port)
-	logger.Info("starting server", "addr", addr)
-	if err := http.ListenAndServe(addr, router); err != nil {
-		logger.Error("server exited", "error", err)
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: router,
+		// Bound how long a slow client may take to send request headers /
+		// the full request. Without ReadHeaderTimeout the server is exposed
+		// to Slowloris-style resource exhaustion (also gosec G114).
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		IdleTimeout:       idleTimeout,
+		// WriteTimeout is deliberately 0 (unbounded): it caps the time from
+		// the end of the request headers to the end of the response write,
+		// which would kill long-lived SSE streams (/api/v1/realtime/sse)
+		// mid-flight. Bound streaming duration inside the handler instead.
+		WriteTimeout: 0,
+	}
+
+	serverErr := make(chan error, 1)
+	go func() {
+		logger.Info("starting server", "addr", addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+		}
+		close(serverErr)
+	}()
+
+	select {
+	case err := <-serverErr:
+		if err != nil {
+			logger.Error("server exited", "error", err)
+		}
+	case <-ctx.Done():
+		logger.Info("shutdown signal received, draining connections", "grace", shutdownGrace)
+		stop() // restore default signal handling: a second Ctrl-C exits now
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			logger.Error("graceful shutdown failed", "error", err)
+		}
+		logger.Info("server stopped")
 	}
 }
 
