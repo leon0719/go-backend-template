@@ -16,7 +16,7 @@ format:
 	gofmt -l -w .
 
 lint:
-	golangci-lint run
+	golangci-lint run  # config: .golangci.yml (version pinned in .github/workflows/ci.yml)
 
 vet:
 	go vet ./...

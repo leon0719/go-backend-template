@@ -1,45 +1,102 @@
+# Dev stack. `make up` must work from a clean checkout with no manual steps:
+# postgres/redis come up and are health-gated, `migrate` applies the goose
+# migrations once and exits, and only then do api/worker/scheduler start.
+# Without that gating the first POST /api/v1/auth/register fails with
+# `relation "users" does not exist`.
+#
+# The shared env block is defined once via a YAML anchor so a new variable
+# (e.g. TRUSTED_PROXIES) can't drift between services.
+# Explicit project name: Compose otherwise derives it from the enclosing
+# directory ("docker"), which collides with every other project that keeps its
+# compose files in a docker/ directory -- sharing volumes and reporting the
+# other project's containers as orphans.
+name: go-backend-template-dev
+
+x-app-env: &app-env
+  ENV: local
+  DATABASE_URL: postgres://postgres:postgres@postgres:5432/go_backend_template?sslmode=disable
+  REDIS_URL: redis://redis:6379
+  JWT_SECRET: dev-secret-change-me
+  LOG_LEVEL: debug
+  # Empty in dev: no reverse proxy in front, and CORS off by default.
+  CORS_ALLOWED_ORIGINS: ""
+  TRUSTED_PROXIES: ""
+
+x-app-build: &app-build
+  context: ..
+  dockerfile: docker/Dockerfile.dev
+
+# api, worker, scheduler and migrate each compile the same module. Sharing
+# the Go build and module caches between them turns three redundant cold
+# builds into one -- without this, the first `make up` runs several full
+# compiles in parallel and can OOM the Docker VM's default memory.
+x-go-caches: &go-caches
+  - ..:/app
+  - gobuild:/root/.cache/go-build
+  - gomod:/go/pkg/mod
+
+x-env-file: &env-file
+  - path: ../.env.local
+    required: false
+
 services:
+  # One-off migration job, mirroring the prod stack. Runs the same
+  # cmd/migrate binary (goose migrations embedded via embed.FS).
+  migrate:
+    build: *app-build
+    command: ["go", "run", "./cmd/migrate", "up"]
+    environment: *app-env
+    env_file: *env-file
+    volumes: *go-caches
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.dev
+    build: *app-build
     ports:
       - "8000:8000"
     environment:
-      ENV: local
+      <<: *app-env
       PORT: "8000"
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/go_backend_template?sslmode=disable
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: dev-secret-change-me
-      LOG_LEVEL: debug
-    env_file:
-      - path: ../.env.local
-        required: false
-    volumes:
-      - ..:/app
+    env_file: *env-file
+    volumes: *go-caches
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   worker:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.dev
+    build: *app-build
     command: ["air", "-c", ".air.worker.toml"]
-    environment:
-      ENV: local
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/go_backend_template?sslmode=disable
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: dev-secret-change-me
-      LOG_LEVEL: debug
-    env_file:
-      - path: ../.env.local
-        required: false
-    volumes:
-      - ..:/app
+    environment: *app-env
+    env_file: *env-file
+    volumes: *go-caches
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # asynq.Scheduler (the Celery Beat equivalent). Exactly one instance —
+  # running it inside each worker replica would enqueue every periodic task
+  # once per replica.
+  scheduler:
+    build: *app-build
+    command: ["air", "-c", ".air.scheduler.toml"]
+    environment: *app-env
+    env_file: *env-file
+    volumes: *go-caches
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   postgres:
     image: postgres:18-alpine
@@ -50,12 +107,30 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # postgres:18+ expects a single mount at /var/lib/postgresql (it puts
+      # the cluster in a version-specific subdirectory), NOT at
+      # /var/lib/postgresql/data as in older images.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      # -U/-d must match POSTGRES_USER/POSTGRES_DB, otherwise pg_isready
+      # reports ready against the wrong database.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d go_backend_template"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   redis:
     image: redis:8-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
 
 volumes:
   pgdata:
+  gobuild:
+  gomod:

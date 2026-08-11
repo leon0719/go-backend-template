@@ -11,6 +11,7 @@ A production-ready Go backend REST API template with an asynq/Redis task queue, 
 | Database      | PostgreSQL 18                                  |
 | Migrations    | goose (embedded into a `cmd/migrate` binary in prod) |
 | Async tasks   | asynq + Redis                                  |
+| Scheduled tasks | `asynq.Scheduler` (`cmd/scheduler`) — Celery Beat equivalent |
 | Auth          | JWT access token + DB-backed refresh token     |
 | API docs      | swaggo/swag (Swagger UI at `/api/docs`)        |
 | Logging       | log/slog                                       |
@@ -20,10 +21,10 @@ A production-ready Go backend REST API template with an asynq/Redis task queue, 
 
 ```bash
 cp .env.local.example .env.local        # then edit JWT_SECRET etc. (optional — dev compose has defaults)
-make up                                  # api, worker, postgres, redis
+make up                                  # postgres, redis, migrate (one-off), api, worker, scheduler
 ```
 
-The dev compose file (`docker/docker-compose.dev.yml`) ships with working defaults for `DATABASE_URL`, `REDIS_URL`, and `JWT_SECRET`, so `make up` works out of the box even without a `.env.local`. Create one anyway to override values (e.g. a real `JWT_SECRET`) — it's loaded automatically if present.
+The dev compose file (`docker/docker-compose.dev.yml`) ships with working defaults for `DATABASE_URL`, `REDIS_URL`, and `JWT_SECRET`, so `make up` works out of the box even without a `.env.local`; create one anyway to override values (e.g. a real `JWT_SECRET`) — it's loaded automatically if present. Postgres and Redis are health-gated and a one-off `migrate` service applies the goose migrations before `api`/`worker`/`scheduler` start, so the API is usable the moment it comes up — no manual migration step.
 
 - API: http://localhost:8000
 - API docs (Swagger): http://localhost:8000/api/docs
@@ -40,7 +41,7 @@ Full guide: [docs/local-development.md](docs/local-development.md)
 | `make rebuild`             | Rebuild after Dockerfile/dep changes      |
 | `make logs-api`            | Tail the `api` container's logs           |
 | `make format`               | `gofmt -l -w .`                           |
-| `make lint`                  | `golangci-lint run`                       |
+| `make lint`                  | `golangci-lint run` (config: `.golangci.yml`) |
 | `make vet`                    | `go vet ./...`                            |
 | `make test`                    | Unit tests (no external services needed)  |
 | `make test-integration`         | Integration tests (needs a local Docker daemon; uses testcontainers) |
@@ -55,12 +56,13 @@ Note: `make migrate` shells out to the `goose` CLI (must be installed locally, o
 cmd/
   api/          # HTTP server entrypoint (also implements -healthcheck probe mode)
   worker/       # asynq task worker entrypoint
+  scheduler/    # asynq.Scheduler entrypoint (Celery Beat equivalent; run exactly one)
   migrate/      # standalone migration binary (embeds goose SQL files; used in prod)
 internal/
   config/       # env-based Config struct (+ narrow ServerConfig/DatabaseConfig loaders)
-  httpserver/   # router, middleware, response envelope, generated Swagger docs
+  httpserver/   # router, middleware chain, request decoding, response envelope, Swagger docs
   jwtutil/      # JWT access-token primitives shared by accounts + realtime
-  db/           # migrations, sqlc queries + generated code, pool
+  db/           # migrations, sqlc queries + generated code, pool, shared repository errors (dberr)
   accounts/     # example app: JWT auth (register/login/refresh/logout/me)
   articles/     # example app: CRUD + ownership + pagination + throttle + task
   health/       # /health/live, /health/ready
@@ -96,6 +98,7 @@ See [docs/backend-standards.md](docs/backend-standards.md) for conventions.
 - No Django-admin equivalent management UI
 - No WebSocket support (SSE only)
 - No cross-worker SSE broadcast (single-instance only in this version)
+- No transactional outbox: publish commits, then enqueues; an enqueue failure is logged, not retried (see [docs/backend-standards.md](docs/backend-standards.md))
 - No session-count limit on concurrent logins per user
 - No idempotency-key support on writes
 - CORS middleware exists but is **disabled by default** (`CORS_ALLOWED_ORIGINS` is empty) — opt in per origin

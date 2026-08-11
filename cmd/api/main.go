@@ -49,6 +49,9 @@ const (
 	readTimeout       = 30 * time.Second
 	idleTimeout       = 120 * time.Second
 	shutdownGrace     = 20 * time.Second
+
+	// healthcheckTimeout bounds the one-shot -healthcheck probe.
+	healthcheckTimeout = 3 * time.Second
 )
 
 // @title           go-backend-template API
@@ -187,22 +190,36 @@ func main() {
 // http://127.0.0.1:<port>/health/live and exits 0 on a 2xx response or 1
 // otherwise.
 func runHealthcheck() {
-	serverCfg, err := config.LoadServerOnly()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "healthcheck: load config failed:", err)
+	// Split so every cleanup (defer) runs before os.Exit.
+	if err := probeLiveness(); err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck:", err)
 		os.Exit(1)
 	}
+}
 
-	client := http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/health/live", serverCfg.Port))
+func probeLiveness() error {
+	serverCfg, err := config.LoadServerOnly()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "healthcheck: request failed:", err)
-		os.Exit(1)
+		return fmt.Errorf("load config failed: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), healthcheckTimeout)
+	defer cancel()
+
+	url := fmt.Sprintf("http://127.0.0.1:%d/health/live", serverCfg.Port)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("build request failed: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		fmt.Fprintln(os.Stderr, "healthcheck: unhealthy status", resp.StatusCode)
-		os.Exit(1)
+		return fmt.Errorf("unhealthy status %d", resp.StatusCode)
 	}
+	return nil
 }

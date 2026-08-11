@@ -124,7 +124,10 @@ func (h *handler) get(w http.ResponseWriter, r *http.Request) {
 // must never be allowed to reach the service as <= 0, since the service
 // computes a raw SQL OFFSET from them without validation.
 func clampInt(raw string, defaultVal, min, max int32) int32 {
-	v, err := strconv.Atoi(raw)
+	// bitSize 32 makes an out-of-int32-range value an error rather than a
+	// silent wrap: strconv.Atoi + int32(...) would turn 2147483648 into a
+	// negative page that sails past the min check below.
+	v, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil {
 		return defaultVal
 	}

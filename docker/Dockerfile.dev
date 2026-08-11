@@ -1,6 +1,8 @@
 FROM golang:1.26-alpine
 
-RUN go install github.com/air-verse/air@latest
+# Pinned: @latest would make image rebuilds non-reproducible and could
+# break hot reload without a single change to this repo.
+RUN go install github.com/air-verse/air@v1.67.4
 
 WORKDIR /app
 COPY go.mod go.sum ./

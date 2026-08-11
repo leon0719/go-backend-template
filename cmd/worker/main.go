@@ -37,6 +37,8 @@ func main() {
 
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(tasks.TypeArticlePublished, articles.NewPublishedTaskHandler(cfg.ArticlePublishedWebhookURL))
+	// Periodic task enqueued by cmd/scheduler (the Celery Beat equivalent).
+	mux.HandleFunc(tasks.TypeHeartbeat, tasks.HandleHeartbeat)
 
 	// srv.Start is non-blocking (unlike srv.Run, which installs asynq's own
 	// signal handling); using it lets us drain in-flight tasks explicitly on

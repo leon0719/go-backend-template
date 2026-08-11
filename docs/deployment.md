@@ -14,7 +14,10 @@
 - `GIT_COMMIT_SHA` build arg is optional; pass it via `GIT_COMMIT_SHA=$(git rev-parse HEAD) docker compose -f docker/docker-compose.prod.yml build` if you want it baked into the `/api` binary (surfaced in its startup log line).
 - Secrets injected via `env_file` are visible through `docker inspect`/`docker exec ... env` to anyone with Docker daemon access — fine on a single host you control; use Docker secrets or an external secrets manager on a shared daemon.
 - `worker` runs `cmd/worker`, the asynq task consumer; it shares the same env vars as `api` (including `DATABASE_URL` and `REDIS_URL`) and also waits on `migrate`.
-- The prod image is built from `docker/Dockerfile.prod`: a `golang:1.26-alpine` build stage producing three static (`CGO_ENABLED=0`) binaries, copied into a `gcr.io/distroless/static-debian12` final stage.
+- `scheduler` runs `cmd/scheduler`, the `asynq.Scheduler` (Celery Beat equivalent), which enqueues the periodic `system:heartbeat` task every 5 minutes. **Run exactly one instance**: `worker` is the service to scale out, and a scheduler per replica would enqueue every periodic task once per replica.
+- All long-running services set `restart: unless-stopped` so they survive host reboots and crashes; `migrate` sets `restart: "no"` because it is a run-once job.
+- `caddy` mounts named volumes at `/data` and `/config`. Without the `/data` volume, Caddy loses its issued certificates and account keys on every restart and re-issues them (burning ACME rate limits against a public CA).
+- The prod image is built from `docker/Dockerfile.prod`: a `golang:1.26-alpine` build stage producing four static (`CGO_ENABLED=0`) binaries (`/api`, `/worker`, `/scheduler`, `/migrate`), copied into a `gcr.io/distroless/static-debian12` final stage.
 
 ## Client IP resolution behind a proxy (`TRUSTED_PROXIES`) — read this
 

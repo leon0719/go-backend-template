@@ -1,3 +1,7 @@
+# Explicit project name so Compose does not derive it from the enclosing
+# "docker" directory and collide with unrelated projects on the same host.
+name: go-backend-template
+
 services:
   # One-off migration job. The prod image (gcr.io/distroless/static-debian12)
   # has no shell and no goose binary, so migrations are applied by /migrate,
@@ -18,12 +22,16 @@ services:
     entrypoint: ["/migrate", "up"]
     env_file:
       - ../.env.prod
+    # No restart policy: this is a run-once job. `on-failure` would be
+    # defensible; `unless-stopped` would loop it forever.
+    restart: "no"
 
   api:
     image: go-backend-template:latest
     entrypoint: ["/api"]
     env_file:
       - ../.env.prod
+    restart: unless-stopped
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -45,6 +53,24 @@ services:
     entrypoint: ["/worker"]
     env_file:
       - ../.env.prod
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # asynq.Scheduler (the Celery Beat equivalent). Run EXACTLY ONE instance:
+  # a scheduler per worker replica would enqueue every periodic task N times.
+  scheduler:
+    image: go-backend-template:latest
+    entrypoint: ["/scheduler"]
+    env_file:
+      - ../.env.prod
+    restart: unless-stopped
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -60,7 +86,17 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
+      # Caddy stores its issued certificates and account keys under /data.
+      # Without a volume they are regenerated on every container restart,
+      # which re-issues certs (and burns ACME rate limits on a public CA).
+      - caddy_data:/data
+      - caddy_config:/config
     env_file:
       - ../.env.prod
+    restart: unless-stopped
     depends_on:
       - api
+
+volumes:
+  caddy_data:
+  caddy_config:

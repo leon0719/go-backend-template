@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -24,7 +25,7 @@ func Recoverer(next http.Handler) http.Handler {
 			// http.ErrAbortHandler is the documented way for a handler to
 			// abort a response without it being treated as an error; let it
 			// propagate to net/http instead of logging/replacing it.
-			if rec == http.ErrAbortHandler {
+			if err, ok := rec.(error); ok && errors.Is(err, http.ErrAbortHandler) {
 				panic(rec)
 			}
 

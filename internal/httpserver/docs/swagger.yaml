@@ -80,6 +80,7 @@ definitions:
       body:
         type: string
       title:
+        minLength: 1
         type: string
     type: object
   respond.ErrorResponse:

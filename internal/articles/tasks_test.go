@@ -41,7 +41,7 @@ func TestPublishedTaskHandler_CallsWebhook(t *testing.T) {
 	}))
 	defer server.Close()
 
-	var handler func(context.Context, *asynq.Task) error = NewPublishedTaskHandler(server.URL)
+	handler := NewPublishedTaskHandler(server.URL)
 
 	task, err := tasks.NewArticlePublishedTask("article-1")
 	require.NoError(t, err)

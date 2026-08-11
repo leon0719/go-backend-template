@@ -1,0 +1,64 @@
+# golangci-lint configuration for this template.
+#
+# The set below is deliberately opinionated but not exhausting: every linter
+# here catches a class of bug or inconsistency that has actually mattered in
+# this codebase (gosec, for instance, is what flags a bare
+# http.ListenAndServe with no ReadHeaderTimeout — G114). Copiers are expected
+# to keep this file and adjust, not delete it.
+#
+# Pinned tool version: see .github/workflows/ci.yml.
+version: "2"
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose # unclosed HTTP response bodies leak connections
+    - copyloopvar
+    - errorlint # %w / errors.Is-As correctness
+    - gocritic
+    - gosec # security-focused checks (G114 timeouts, G404 weak rand, ...)
+    - misspell
+    - nilerr # `if err != nil { return nil }` — silently swallowed errors
+    - noctx # HTTP requests without a context
+    - revive
+    - unconvert
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+
+  settings:
+    gosec:
+      excludes:
+        # G104 duplicates errcheck.
+        - G104
+    revive:
+      rules:
+        - name: unused-parameter
+          disabled: true # http.HandlerFunc signatures make this noisy
+
+  exclusions:
+    presets:
+      - comments
+      - std-error-handling
+    rules:
+      # Tests may ignore errors and use weak randomness freely.
+      - path: _test\.go
+        linters:
+          - bodyclose
+          - errcheck
+          - gosec
+          - noctx
+      # sqlc output is generated; do not lint it.
+      - path: internal/db/sqlc/
+        linters:
+          - gocritic
+          - revive
+          - unconvert
+
+formatters:
+  enable:
+    - gofmt
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

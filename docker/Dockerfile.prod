@@ -1,4 +1,4 @@
-# syntax note: builds three static binaries (api, worker, migrate).
+# syntax note: builds four static binaries (api, worker, scheduler, migrate).
 # migrate embeds the goose SQL migration files directly (see
 # internal/db/migrations/embed.go) so the distroless final image needs no
 # shell, no goose CLI, and no mounted migrations directory.
@@ -11,11 +11,13 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -ldflags "-X main.GitCommitSHA=${GIT_COMMIT_SHA}" -o /out/api ./cmd/api
 RUN CGO_ENABLED=0 go build -o /out/worker ./cmd/worker
+RUN CGO_ENABLED=0 go build -o /out/scheduler ./cmd/scheduler
 RUN CGO_ENABLED=0 go build -o /out/migrate ./cmd/migrate
 
 FROM gcr.io/distroless/static-debian12
 COPY --from=build /out/api /api
 COPY --from=build /out/worker /worker
+COPY --from=build /out/scheduler /scheduler
 COPY --from=build /out/migrate /migrate
 EXPOSE 8000
 ENTRYPOINT ["/api"]
