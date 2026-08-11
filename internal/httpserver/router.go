@@ -33,6 +33,12 @@ func NewRouter(deps Deps) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 
+	// Health endpoints are unversioned infra probes mounted at the router root.
+	// They are intentionally excluded from the generated OpenAPI/Swagger spec
+	// (no swag annotations in internal/health/handler.go) because Swagger UI
+	// would prefix them with /api/v1, advertising URLs the server never serves.
+	// Do not re-add swag annotations for /health/* without also reconsidering
+	// where the routes are mounted.
 	health.RegisterRoutes(r, deps.Pool, deps.Redis)
 
 	r.Get("/api/docs/*", httpSwagger.WrapHandler)

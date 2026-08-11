@@ -378,40 +378,6 @@ paths:
       summary: Register a new user
       tags:
       - auth
-  /health/live:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Liveness probe
-      tags:
-      - health
-  /health/ready:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "503":
-          description: Service Unavailable
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Readiness probe (checks DB and Redis connectivity)
-      tags:
-      - health
   /realtime/sse:
     get:
       produces:

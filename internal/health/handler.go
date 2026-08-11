@@ -22,23 +22,24 @@ type handler struct {
 	rdb  *redis.Client
 }
 
-// live godoc
-// @Summary      Liveness probe
-// @Tags         health
-// @Produce      json
-// @Success      200 {object} map[string]string
-// @Router       /health/live [get]
+// live handles the liveness probe.
+//
+// Intentionally NOT documented via swag/OpenAPI annotations: this endpoint is
+// an unversioned infrastructure probe mounted at the router root (/health/live),
+// outside the /api/v1 base path. Swagger UI prefixes every documented path with
+// basePath, so annotating this route would advertise /api/v1/health/live in the
+// generated spec — a URL the server does not actually serve (404). Do not re-add
+// swag annotations here without also changing where the route is mounted.
 func (h *handler) live(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// ready godoc
-// @Summary      Readiness probe (checks DB and Redis connectivity)
-// @Tags         health
-// @Produce      json
-// @Success      200 {object} map[string]string
-// @Failure      503 {object} map[string]string
-// @Router       /health/ready [get]
+// ready handles the readiness probe (checks DB and Redis connectivity).
+//
+// Intentionally NOT documented via swag/OpenAPI annotations: same reasoning as
+// live() above — this is an unversioned infrastructure probe served outside
+// /api/v1, and documenting it under that base path would misrepresent the
+// actual served URL.
 func (h *handler) ready(w http.ResponseWriter, r *http.Request) {
 	// When dependencies are not configured (e.g., in unit tests),
 	// return 200 OK to indicate the service itself is running.
