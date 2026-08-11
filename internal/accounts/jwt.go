@@ -32,13 +32,17 @@ func ParseAccessToken(secret, tokenStr string) (uuid.UUID, error) {
 	return uuid.Parse(claims.Subject)
 }
 
+func digestOf(plain string) string {
+	sum := sha256.Sum256([]byte(plain))
+	return hex.EncodeToString(sum[:])
+}
+
 func NewRefreshTokenPlain() (plain string, digest string, err error) {
 	b := make([]byte, 32)
 	if _, err = rand.Read(b); err != nil {
 		return "", "", err
 	}
 	plain = hex.EncodeToString(b)
-	sum := sha256.Sum256([]byte(plain))
-	digest = hex.EncodeToString(sum[:])
+	digest = digestOf(plain)
 	return plain, digest, nil
 }
