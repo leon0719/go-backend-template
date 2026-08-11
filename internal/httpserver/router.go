@@ -13,6 +13,7 @@ import (
 	"go-backend-template/internal/config"
 	"go-backend-template/internal/health"
 	"go-backend-template/internal/httpserver/middleware"
+	"go-backend-template/internal/realtime"
 )
 
 type Deps struct {
@@ -38,6 +39,10 @@ func NewRouter(deps Deps) http.Handler {
 
 	r.Route("/api/v1/articles", func(ar chi.Router) {
 		articles.RegisterRoutes(ar, deps.ArticlesSvc, deps.Config.JWTSecret, deps.WriteRateLimit)
+	})
+
+	r.Route("/api/v1/realtime", func(rr chi.Router) {
+		realtime.RegisterRoutes(rr, deps.Config.JWTSecret)
 	})
 
 	return r
