@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Check formatting
+        run: |
+          fmt_files="$(gofmt -l .)"
+          if [ -n "$fmt_files" ]; then
+            echo "The following files are not gofmt-formatted:"
+            echo "$fmt_files"
+            echo "Run 'make format' (or 'gofmt -l -w .') and commit the result."
+            exit 1
+          fi
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Install sqlc
+        run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
+      - name: Install swag
+        run: go install github.com/swaggo/swag/cmd/swag@v1.16.6
+
+      - name: Check sqlc-generated code is up to date
+        run: |
+          sqlc generate
+          if ! git diff --exit-code -- internal/db/sqlc/; then
+            echo "sqlc-generated code is out of date. Run 'sqlc generate' and commit the result."
+            exit 1
+          fi
+
+      - name: Check swag-generated docs are up to date
+        run: |
+          swag init -g cmd/api/main.go -o internal/httpserver/docs
+          if ! git diff --exit-code -- internal/httpserver/docs/; then
+            echo "swag-generated docs are out of date. Run 'make docs' and commit the result."
+            exit 1
+          fi
+
+      - name: Unit tests
+        run: go test ./...
+
+      - name: Integration tests
+        run: go test -tags=integration ./...
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build prod image
+        run: docker build -f docker/Dockerfile.prod -t go-backend-template:ci .
