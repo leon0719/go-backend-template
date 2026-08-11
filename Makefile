@@ -131,11 +131,14 @@ lint:
 vet:
 	go vet ./...
 
+# -race matches CI. The SSE hub, asynq workers and the Redis rate limiter are
+# all concurrent code; running the suite without the detector hides exactly
+# the class of bug that only shows up under production load.
 test:
-	go test ./...
+	go test -race ./...
 
 test-integration:
-	go test -tags=integration ./...
+	go test -race -tags=integration ./...
 
 # ===================
 # Database / Docs

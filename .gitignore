@@ -2,3 +2,4 @@
 .env.prod
 tmp/
 *.log
+docs/superpowers/

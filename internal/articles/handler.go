@@ -35,17 +35,15 @@ func RegisterRoutes(r chi.Router, svc *Service, jwtSecret string, writeRateLimit
 	r.Get("/", h.list)
 	r.Get("/{id}", h.get)
 
-	if writeRateLimit != nil {
-		r.With(middleware.RateLimit(writeRateLimit, writeRateLimitKey)).Post("/", h.create)
-		r.With(middleware.RateLimit(writeRateLimit, writeRateLimitKey)).Patch("/{id}", h.update)
-		r.With(middleware.RateLimit(writeRateLimit, writeRateLimitKey)).Delete("/{id}", h.delete)
-		r.With(middleware.RateLimit(writeRateLimit, writeRateLimitKey)).Post("/{id}/publish", h.publish)
-	} else {
-		r.Post("/", h.create)
-		r.Patch("/{id}", h.update)
-		r.Delete("/{id}", h.delete)
-		r.Post("/{id}/publish", h.publish)
-	}
+	// middleware.RateLimit degrades to a no-op on a nil limiter, so the write
+	// routes are declared once regardless of whether Redis is wired up.
+	r.Group(func(wr chi.Router) {
+		wr.Use(middleware.RateLimit(writeRateLimit, writeRateLimitKey))
+		wr.Post("/", h.create)
+		wr.Patch("/{id}", h.update)
+		wr.Delete("/{id}", h.delete)
+		wr.Post("/{id}/publish", h.publish)
+	})
 }
 
 type handler struct {

@@ -14,7 +14,13 @@ RUN CGO_ENABLED=0 go build -o /out/worker ./cmd/worker
 RUN CGO_ENABLED=0 go build -o /out/scheduler ./cmd/scheduler
 RUN CGO_ENABLED=0 go build -o /out/migrate ./cmd/migrate
 
-FROM gcr.io/distroless/static-debian12
+# The :nonroot tag ships a distroless image whose default user is uid 65532.
+# The explicit USER makes that guarantee independent of the tag, so a future
+# base-image bump can't silently put the process back on uid 0. Nothing here
+# needs root: the binaries are static, listen on 8000 (>1024), and write
+# nothing to the filesystem.
+FROM gcr.io/distroless/static-debian12:nonroot
+USER nonroot:nonroot
 COPY --from=build /out/api /api
 COPY --from=build /out/worker /worker
 COPY --from=build /out/scheduler /scheduler

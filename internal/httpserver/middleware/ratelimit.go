@@ -42,7 +42,16 @@ func (rl *RateLimiter) Allow(ctx context.Context, key string) (bool, error) {
 	return count <= int64(rl.limit), nil
 }
 
+// RateLimit builds the per-route rate-limiting middleware. A nil limiter
+// yields a pass-through middleware rather than panicking, so callers can mount
+// it unconditionally — RegisterRoutes is handed a nil limiter whenever Redis
+// is not wired up (most handler tests). Without this the route tables had to
+// be written twice, once per branch, and every new route risked being added to
+// only one of them.
 func RateLimit(rl *RateLimiter, keyFunc func(*http.Request) string) func(http.Handler) http.Handler {
+	if rl == nil {
+		return func(next http.Handler) http.Handler { return next }
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			allowed, err := rl.Allow(r.Context(), keyFunc(r))

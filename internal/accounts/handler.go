@@ -24,13 +24,13 @@ func authRateLimitKey(r *http.Request) string {
 func RegisterRoutes(r chi.Router, svc *Service, jwtSecret string, rl *middleware.RateLimiter) {
 	h := &handler{svc: svc}
 
-	if rl != nil {
-		r.With(middleware.RateLimit(rl, authRateLimitKey)).Post("/register", h.register)
-		r.With(middleware.RateLimit(rl, authRateLimitKey)).Post("/login", h.login)
-	} else {
-		r.Post("/register", h.register)
-		r.Post("/login", h.login)
-	}
+	// middleware.RateLimit degrades to a no-op on a nil limiter, so these are
+	// declared once regardless of whether Redis is wired up.
+	r.Group(func(lr chi.Router) {
+		lr.Use(middleware.RateLimit(rl, authRateLimitKey))
+		lr.Post("/register", h.register)
+		lr.Post("/login", h.login)
+	})
 
 	r.Post("/refresh", h.refresh)
 
