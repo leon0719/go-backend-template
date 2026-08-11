@@ -1,0 +1,101 @@
+//go:build integration
+
+package articles
+
+import (
+	"context"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+
+	"go-backend-template/internal/db"
+	"go-backend-template/internal/db/sqlc"
+)
+
+func setupArticlesRepo(t *testing.T) (*Repository, uuid.UUID) {
+	ctx := context.Background()
+	pgContainer, err := postgres.Run(ctx, "postgres:18-alpine",
+		postgres.WithDatabase("test"),
+		postgres.WithUsername("postgres"),
+		postgres.WithPassword("postgres"),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pgContainer.Terminate(ctx) })
+
+	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	pool, err := db.NewPool(ctx, connStr)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	_, err = pool.Exec(ctx, `
+		CREATE EXTENSION IF NOT EXISTS pgcrypto;
+		CREATE TABLE users (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), email TEXT, password_hash TEXT, created_at TIMESTAMPTZ DEFAULT now());
+		CREATE TABLE articles (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			title TEXT NOT NULL,
+			body TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'draft',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+		);
+	`)
+	require.NoError(t, err)
+
+	var userID uuid.UUID
+	require.NoError(t, pool.QueryRow(ctx, `INSERT INTO users (email, password_hash) VALUES ('a@example.com', 'x') RETURNING id`).Scan(&userID))
+
+	return NewRepository(sqlc.New(pool)), userID
+}
+
+func TestRepository_CreateGetListUpdateDelete(t *testing.T) {
+	repo, userID := setupArticlesRepo(t)
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, userID, "Title", "Body")
+	require.NoError(t, err)
+	assert.Equal(t, "draft", created.Status)
+
+	fetched, err := repo.GetOwned(ctx, created.ID, userID)
+	require.NoError(t, err)
+	assert.Equal(t, "Title", fetched.Title)
+
+	otherUser := uuid.New()
+	_, err = repo.GetOwned(ctx, created.ID, otherUser)
+	assert.ErrorIs(t, err, ErrNotFound)
+
+	items, total, err := repo.ListOwned(ctx, userID, "", "", 10, 0)
+	require.NoError(t, err)
+	assert.Len(t, items, 1)
+	assert.Equal(t, int64(1), total)
+
+	newTitle := "Updated"
+	updated, err := repo.Update(ctx, created.ID, userID, &newTitle, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "Updated", updated.Title)
+
+	require.NoError(t, repo.Delete(ctx, created.ID, userID))
+	_, err = repo.GetOwned(ctx, created.ID, userID)
+	assert.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestRepository_PublishIfDraft_OnlyPublishesOnce(t *testing.T) {
+	repo, userID := setupArticlesRepo(t)
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, userID, "Title", "Body")
+	require.NoError(t, err)
+
+	published, err := repo.PublishIfDraft(ctx, created.ID, userID)
+	require.NoError(t, err)
+	assert.True(t, published)
+
+	publishedAgain, err := repo.PublishIfDraft(ctx, created.ID, userID)
+	require.NoError(t, err)
+	assert.False(t, publishedAgain)
+}
