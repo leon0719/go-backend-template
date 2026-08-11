@@ -21,6 +21,12 @@ func setupArticlesRepo(t *testing.T) (*Repository, uuid.UUID) {
 		postgres.WithDatabase("test"),
 		postgres.WithUsername("postgres"),
 		postgres.WithPassword("postgres"),
+		// Required, not optional. The official Postgres image runs initdb
+		// against a temporary server, logs "ready to accept connections",
+		// then shuts it down and starts the real one. Connecting in that
+		// window fails with "connection reset by peer". BasicWaitStrategies
+		// waits for that log line twice and for the port to actually serve.
+		postgres.BasicWaitStrategies(),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = pgContainer.Terminate(ctx) })
