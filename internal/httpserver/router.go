@@ -9,18 +9,21 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"go-backend-template/internal/accounts"
+	"go-backend-template/internal/articles"
 	"go-backend-template/internal/config"
 	"go-backend-template/internal/health"
 	"go-backend-template/internal/httpserver/middleware"
 )
 
 type Deps struct {
-	Config        *config.Config
-	Logger        *slog.Logger
-	Pool          *pgxpool.Pool
-	AccountsSvc   *accounts.Service
-	AuthRateLimit *middleware.RateLimiter
-	Redis         *redis.Client
+	Config         *config.Config
+	Logger         *slog.Logger
+	Pool           *pgxpool.Pool
+	AccountsSvc    *accounts.Service
+	AuthRateLimit  *middleware.RateLimiter
+	ArticlesSvc    *articles.Service
+	WriteRateLimit *middleware.RateLimiter
+	Redis          *redis.Client
 }
 
 func NewRouter(deps Deps) http.Handler {
@@ -31,6 +34,10 @@ func NewRouter(deps Deps) http.Handler {
 
 	r.Route("/api/v1/auth", func(ar chi.Router) {
 		accounts.RegisterRoutes(ar, deps.AccountsSvc, deps.Config.JWTSecret, deps.AuthRateLimit)
+	})
+
+	r.Route("/api/v1/articles", func(ar chi.Router) {
+		articles.RegisterRoutes(ar, deps.ArticlesSvc, deps.Config.JWTSecret, deps.WriteRateLimit)
 	})
 
 	return r
