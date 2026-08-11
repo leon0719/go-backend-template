@@ -1,0 +1,69 @@
+services:
+  # One-off migration job. The prod image (gcr.io/distroless/static-debian12)
+  # has no shell and no goose binary, so migrations are applied by /migrate,
+  # a small binary built from cmd/migrate that embeds the goose SQL files
+  # (see internal/db/migrations/embed.go) and runs them via the goose
+  # library directly. api/worker wait for this to exit 0 before starting.
+  migrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.prod
+      args:
+        GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}
+    entrypoint: ["/migrate", "up"]
+    env_file:
+      - ../.env.prod
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.prod
+      args:
+        GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}
+    entrypoint: ["/api"]
+    env_file:
+      - ../.env.prod
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # distroless has no wget/curl/shell; the api binary implements its own
+      # -healthcheck mode (GET /health/live, exit 0/1) for exactly this.
+      test: ["CMD", "/api", "-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.prod
+      args:
+        GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}
+    entrypoint: ["/worker"]
+    env_file:
+      - ../.env.prod
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    env_file:
+      - ../.env.prod
+    depends_on:
+      - api
