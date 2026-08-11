@@ -132,6 +132,7 @@ func main() {
 	router := httpserver.NewRouter(httpserver.Deps{
 		Config:         cfg,
 		Logger:         logger,
+		Version:        GitCommitSHA,
 		Pool:           pool,
 		AccountsSvc:    accountsSvc,
 		AuthRateLimit:  authRateLimiter,

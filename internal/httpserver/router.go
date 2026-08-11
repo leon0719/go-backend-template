@@ -18,9 +18,14 @@ import (
 	"go-backend-template/internal/realtime"
 )
 
+// appName is reported by GET /. Rename it when you fork this template.
+const appName = "go-backend-template"
+
 type Deps struct {
-	Config         *config.Config
-	Logger         *slog.Logger
+	Config *config.Config
+	Logger *slog.Logger
+	// Version is reported by GET /. Empty renders as "dev".
+	Version        string
 	Pool           *pgxpool.Pool
 	AccountsSvc    *accounts.Service
 	AuthRateLimit  *middleware.RateLimiter
@@ -74,7 +79,11 @@ func NewRouter(deps Deps) http.Handler {
 	// would prefix them with /api/v1, advertising URLs the server never serves.
 	// Do not re-add swag annotations for /health/* without also reconsidering
 	// where the routes are mounted.
-	health.RegisterRoutes(r, deps.Pool, deps.Redis)
+	version := deps.Version
+	if version == "" {
+		version = "dev"
+	}
+	health.RegisterRoutes(r, deps.Pool, deps.Redis, appName, version)
 
 	r.Get("/api/docs/*", httpSwagger.WrapHandler)
 

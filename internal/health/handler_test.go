@@ -14,9 +14,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestRoot_ReturnsNameAndVersion(t *testing.T) {
+	r := chi.NewRouter()
+	RegisterRoutes(r, nil, nil, "go-backend-template", "test")
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var body map[string]string
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, "go-backend-template", body["name"])
+	assert.Equal(t, "test", body["version"])
+
+	// Anonymous callers must not learn the environment, build SHA, or
+	// dependency status from this endpoint — that is reconnaissance.
+	assert.NotContains(t, body, "env")
+	assert.NotContains(t, body, "commit")
+	assert.NotContains(t, body, "status")
+}
+
 func TestLive_AlwaysReturns200(t *testing.T) {
 	r := chi.NewRouter()
-	RegisterRoutes(r, nil, nil)
+	RegisterRoutes(r, nil, nil, "go-backend-template", "test")
 
 	req := httptest.NewRequest(http.MethodGet, "/health/live", nil)
 	rec := httptest.NewRecorder()
@@ -27,7 +49,7 @@ func TestLive_AlwaysReturns200(t *testing.T) {
 
 func TestReady_NilDependencies_Returns200(t *testing.T) {
 	r := chi.NewRouter()
-	RegisterRoutes(r, nil, nil)
+	RegisterRoutes(r, nil, nil, "go-backend-template", "test")
 
 	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
 	rec := httptest.NewRecorder()
@@ -51,7 +73,7 @@ func unreachablePool(t *testing.T) *pgxpool.Pool {
 func TestReady_DBUnreachable_Returns503(t *testing.T) {
 	r := chi.NewRouter()
 	// nil Redis is skipped, so this isolates the DB branch.
-	RegisterRoutes(r, unreachablePool(t), nil)
+	RegisterRoutes(r, unreachablePool(t), nil, "go-backend-template", "test")
 
 	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
 	rec := httptest.NewRecorder()
@@ -71,7 +93,7 @@ func TestReady_RedisUnreachable_Returns503(t *testing.T) {
 	require.NoError(t, rdb.Close())
 
 	r := chi.NewRouter()
-	RegisterRoutes(r, nil, rdb)
+	RegisterRoutes(r, nil, rdb, "go-backend-template", "test")
 
 	req := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
 	rec := httptest.NewRecorder()

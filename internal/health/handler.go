@@ -10,16 +10,35 @@ import (
 	"go-backend-template/internal/httpserver/respond"
 )
 
-func RegisterRoutes(r chi.Router, pool *pgxpool.Pool, rdb *redis.Client) {
-	h := &handler{pool: pool, rdb: rdb}
+func RegisterRoutes(r chi.Router, pool *pgxpool.Pool, rdb *redis.Client, name, version string) {
+	h := &handler{pool: pool, rdb: rdb, name: name, version: version}
 
+	r.Get("/", h.root)
 	r.Get("/health/live", h.live)
 	r.Get("/health/ready", h.ready)
 }
 
 type handler struct {
-	pool *pgxpool.Pool
-	rdb  *redis.Client
+	pool    *pgxpool.Pool
+	rdb     *redis.Client
+	name    string
+	version string
+}
+
+// root handles GET / — a minimal "the API is here" response.
+//
+// Deliberately returns only the service name and version. Environment, build
+// SHA, and dependency health are all withheld: this endpoint is unauthenticated,
+// so anything it reports is reconnaissance available to anyone who can reach the
+// host. Operators who need that detail have /health/ready and the logs.
+//
+// Not documented via swag for the same reason as the /health/* probes below:
+// it is served at the router root, outside the /api/v1 base path.
+func (h *handler) root(w http.ResponseWriter, r *http.Request) {
+	respond.JSON(w, http.StatusOK, map[string]string{
+		"name":    h.name,
+		"version": h.version,
+	})
 }
 
 // live handles the liveness probe.
