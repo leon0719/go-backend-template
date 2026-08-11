@@ -68,6 +68,15 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    # Gives `docker compose ps` a real health column instead of a bare "running"
+    # that says nothing about whether air finished compiling. start_period is
+    # generous because the first cold build of the module takes minutes.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 180s
 
   worker:
     build: *app-build
@@ -99,13 +108,19 @@ services:
         condition: service_completed_successfully
 
   postgres:
-    image: postgres:18-alpine
+    # Digest-pinned so a rebuilt stack is byte-identical months later; bump the
+    # tag and digest together (dependabot's docker ecosystem does both).
+    image: postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: go_backend_template
     ports:
-      - "5432:5432"
+      # 5433 on the host, not 5432: a locally-installed Postgres almost always
+      # owns 5432, and the collision surfaces as "port is already allocated" or,
+      # worse, a psql that silently connects to the wrong server. Containers
+      # still reach each other on 5432 over the compose network.
+      - "5433:5432"
     volumes:
       # postgres:18+ expects a single mount at /var/lib/postgresql (it puts
       # the cluster in a version-specific subdirectory), NOT at
@@ -121,9 +136,10 @@ services:
       start_period: 10s
 
   redis:
-    image: redis:8-alpine
+    image: redis:8-alpine@sha256:978f0e01593e65eed801f2402944efcd936d43b5027e4908a7897baf88ed6241
     ports:
-      - "6379:6379"
+      # 6380 on the host for the same reason Postgres uses 5433 above.
+      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s

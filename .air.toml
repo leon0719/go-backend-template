@@ -8,10 +8,12 @@ delay = 500
 exclude_dir = ["tmp", "docker", "docs"]
 include_ext = ["go"]
 # Poll instead of relying on filesystem events. The source tree is bind-mounted
-# from the host, and inotify events do not cross the VM boundary that backs
-# Docker on macOS (colima, Docker Desktop) or Windows — air would sit there
-# seeing nothing while you edit, and "hot reload silently stopped working" is a
-# miserable thing to debug. Polling costs a little CPU and always works.
+# from the host, and colima (virtiofs) forwards only chmod/attribute events, not
+# real write events — so an event-based watcher sits there seeing nothing while
+# you edit (colima#1244, colima#1341; Docker Desktop on macOS/Windows has the
+# same class of problem). "Hot reload silently stopped working" is a miserable
+# thing to debug, so trade a little CPU for a watcher that always fires.
+# 1000ms keeps that CPU cost modest on a bind-mounted tree.
 poll = true
 poll_interval = 1000
 
