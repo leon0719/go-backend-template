@@ -3,6 +3,7 @@ package articles
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/hibiken/asynq"
@@ -17,8 +18,12 @@ func NewPublishedTaskHandler(webhookURL string) func(context.Context, *asynq.Tas
 	return func(ctx context.Context, t *asynq.Task) error {
 		var payload tasks.ArticlePublishedPayload
 		if err := json.Unmarshal(t.Payload(), &payload); err != nil {
-			return fmt.Errorf("unmarshal payload: %w", err)
+			return fmt.Errorf("unmarshal payload: %w: %w", asynq.SkipRetry, err)
 		}
-		return NotifyArticlePublishedWebhook(ctx, webhookURL, payload.ArticleID)
+		err := NotifyArticlePublishedWebhook(ctx, webhookURL, payload.ArticleID)
+		if err != nil && errors.Is(err, ErrWebhookPermanent) {
+			return fmt.Errorf("webhook permanent error: %w: %w", asynq.SkipRetry, err)
+		}
+		return err
 	}
 }
