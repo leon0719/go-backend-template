@@ -57,6 +57,7 @@ func main() {
 	router := httpserver.NewRouter(httpserver.Deps{
 		Config:        cfg,
 		Logger:        logger,
+		Pool:          pool,
 		AccountsSvc:   accountsSvc,
 		AuthRateLimit: authRateLimiter,
 		Redis:         rdb,
