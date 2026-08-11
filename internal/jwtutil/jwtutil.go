@@ -25,9 +25,15 @@ func NewAccessToken(secret string, userID uuid.UUID, ttl time.Duration) (string,
 
 func ParseAccessToken(secret, tokenStr string) (uuid.UUID, error) {
 	claims := &jwt.RegisteredClaims{}
+	// WithValidMethods pins the accepted signing algorithm to the one
+	// NewAccessToken uses. Without it, the keyfunc hands the HMAC secret to
+	// whatever `alg` the token claims — the classic algorithm-confusion hole
+	// (e.g. a token signed HS256 using an RS256 *public* key as the secret).
+	// jwt/v5 already blocks `alg: none`, but this pin is what keeps the
+	// template safe if someone later swaps in an asymmetric algorithm.
 	token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {
 		return []byte(secret), nil
-	})
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 	if err != nil || !token.Valid {
 		return uuid.Nil, errors.New("invalid token")
 	}
