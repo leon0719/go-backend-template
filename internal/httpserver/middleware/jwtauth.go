@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"go-backend-template/internal/accounts"
 	"go-backend-template/internal/httpserver/respond"
+	"go-backend-template/internal/jwtutil"
 )
 
 type userCtxKey string
@@ -25,7 +25,7 @@ func JWTAuth(secret string) func(http.Handler) http.Handler {
 				return
 			}
 
-			userID, err := accounts.ParseAccessToken(secret, parts[1])
+			userID, err := jwtutil.ParseAccessToken(secret, parts[1])
 			if err != nil {
 				respond.Error(w, http.StatusUnauthorized, respond.CodeUnauthorized, "invalid or expired token")
 				return

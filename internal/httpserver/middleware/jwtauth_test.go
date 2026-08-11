@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"go-backend-template/internal/accounts"
+	"go-backend-template/internal/jwtutil"
 )
 
 func TestJWTAuth_ValidToken_SetsUserID(t *testing.T) {
 	userID := uuid.New()
-	token, err := accounts.NewAccessToken("secret", userID, 15*time.Minute)
+	token, err := jwtutil.NewAccessToken("secret", userID, 15*time.Minute)
 	require.NoError(t, err)
 
 	var gotID uuid.UUID

@@ -4,32 +4,25 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+
+	"go-backend-template/internal/jwtutil"
 )
 
+// NewAccessToken and ParseAccessToken delegate to internal/jwtutil, which
+// holds the actual JWT logic. They are kept here as thin wrappers so
+// existing callers/tests in this package don't need to change, while
+// internal/httpserver/middleware depends on jwtutil directly (avoiding an
+// accounts <-> middleware import cycle, since middleware also needs to
+// parse tokens and accounts needs middleware for route wiring).
 func NewAccessToken(secret string, userID uuid.UUID, ttl time.Duration) (string, error) {
-	claims := jwt.RegisteredClaims{
-		Subject:   userID.String(),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(secret))
+	return jwtutil.NewAccessToken(secret, userID, ttl)
 }
 
 func ParseAccessToken(secret, tokenStr string) (uuid.UUID, error) {
-	claims := &jwt.RegisteredClaims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {
-		return []byte(secret), nil
-	})
-	if err != nil || !token.Valid {
-		return uuid.Nil, errors.New("invalid token")
-	}
-	return uuid.Parse(claims.Subject)
+	return jwtutil.ParseAccessToken(secret, tokenStr)
 }
 
 func digestOf(plain string) string {
