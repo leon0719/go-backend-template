@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
@@ -17,7 +18,10 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	envName := "local"
+	envName := os.Getenv("ENV")
+	if envName == "" {
+		envName = "local"
+	}
 	_ = godotenv.Load(fmt.Sprintf(".env.%s", envName))
 
 	cfg := &Config{}
