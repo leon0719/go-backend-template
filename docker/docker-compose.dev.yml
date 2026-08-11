@@ -116,11 +116,10 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: go_backend_template
     ports:
-      # 5433 on the host, not 5432: a locally-installed Postgres almost always
-      # owns 5432, and the collision surfaces as "port is already allocated" or,
-      # worse, a psql that silently connects to the wrong server. Containers
-      # still reach each other on 5432 over the compose network.
-      - "5433:5432"
+      # If a locally-installed Postgres already owns 5432, change the host side
+      # here (e.g. "5433:5432"). Containers reach each other on 5432 over the
+      # compose network regardless.
+      - "5432:5432"
     volumes:
       # postgres:18+ expects a single mount at /var/lib/postgresql (it puts
       # the cluster in a version-specific subdirectory), NOT at

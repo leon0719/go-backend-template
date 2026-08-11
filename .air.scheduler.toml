@@ -5,8 +5,22 @@ tmp_dir = "tmp"
 cmd = "go build -o ./tmp/scheduler ./cmd/scheduler"
 bin = "./tmp/scheduler"
 delay = 500
-exclude_dir = ["tmp", "docker", "docs"]
+# Overrides air's defaults wholesale, so vendor/testdata are restated here.
+# .git matters under poll = true: air walks the tree every interval.
+exclude_dir = ["tmp", "docker", "docs", "vendor", "testdata", ".git"]
 include_ext = ["go"]
+# See .air.toml — filesystem events do not cross the VM boundary backing Docker
+# on macOS/Windows, so poll rather than silently never rebuilding.
+poll = true
+poll_interval = 1000
+
+# air SIGKILLs the process by default, so cmd/* graceful shutdown
+# (signal.NotifyContext + Shutdown) would never actually run in dev, and every
+# reload would sever in-flight requests and SSE streams mid-stream. Send SIGINT
+# and give it a few seconds to drain — which also means the shutdown path is
+# exercised constantly during development instead of only in production.
+send_interrupt = true
+kill_delay = "5s"
 
 [log]
 time = true
