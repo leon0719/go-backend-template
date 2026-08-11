@@ -23,6 +23,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
+	"go-backend-template/internal/config"
 	"go-backend-template/internal/db/migrations"
 )
 
@@ -38,9 +39,9 @@ func run() error {
 		command = os.Args[1]
 	}
 
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		return fmt.Errorf("DATABASE_URL is required")
+	dbCfg, err := config.LoadDatabaseOnly()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
 	}
 
 	goose.SetBaseFS(migrations.FS)
@@ -48,7 +49,7 @@ func run() error {
 		return err
 	}
 
-	db, err := sql.Open("pgx", dbURL)
+	db, err := sql.Open("pgx", dbCfg.DatabaseURL)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}

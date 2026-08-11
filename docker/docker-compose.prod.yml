@@ -4,22 +4,23 @@ services:
   # a small binary built from cmd/migrate that embeds the goose SQL files
   # (see internal/db/migrations/embed.go) and runs them via the goose
   # library directly. api/worker wait for this to exit 0 before starting.
+  #
+  # migrate owns the only `build:` block; api and worker reference the same
+  # `image:` it produces so the multi-stage image is built once and reused
+  # (all three binaries live in the same image, selected via `entrypoint:`).
   migrate:
     build:
       context: ..
       dockerfile: docker/Dockerfile.prod
       args:
         GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}
+    image: go-backend-template:latest
     entrypoint: ["/migrate", "up"]
     env_file:
       - ../.env.prod
 
   api:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.prod
-      args:
-        GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}
+    image: go-backend-template:latest
     entrypoint: ["/api"]
     env_file:
       - ../.env.prod
@@ -40,11 +41,7 @@ services:
         max-file: "3"
 
   worker:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.prod
-      args:
-        GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}
+    image: go-backend-template:latest
     entrypoint: ["/worker"]
     env_file:
       - ../.env.prod

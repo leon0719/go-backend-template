@@ -63,3 +63,50 @@ func TestLoad_UsesENVVariable(t *testing.T) {
 	assert.Equal(t, "custom", cfg.Env)
 	assert.Equal(t, 9000, cfg.Port)
 }
+
+func TestLoadDatabaseOnly_ReadsDatabaseURL(t *testing.T) {
+	t.Setenv("ENV", "local")
+	t.Setenv("DATABASE_URL", "postgres://localhost:5432/test")
+	os.Unsetenv("REDIS_URL")
+	os.Unsetenv("JWT_SECRET")
+
+	cfg, err := LoadDatabaseOnly()
+	require.NoError(t, err)
+
+	assert.Equal(t, "postgres://localhost:5432/test", cfg.DatabaseURL)
+}
+
+func TestLoadDatabaseOnly_MissingDatabaseURL_ReturnsError(t *testing.T) {
+	t.Setenv("ENV", "local")
+	os.Unsetenv("DATABASE_URL")
+
+	_, err := LoadDatabaseOnly()
+	assert.Error(t, err)
+}
+
+func TestLoadServerOnly_ReadsEnvAndPort(t *testing.T) {
+	t.Setenv("ENV", "local")
+	t.Setenv("PORT", "9090")
+	os.Unsetenv("DATABASE_URL")
+	os.Unsetenv("REDIS_URL")
+	os.Unsetenv("JWT_SECRET")
+
+	cfg, err := LoadServerOnly()
+	require.NoError(t, err)
+
+	assert.Equal(t, "local", cfg.Env)
+	assert.Equal(t, 9090, cfg.Port)
+}
+
+func TestLoadServerOnly_DefaultsPortTo8000(t *testing.T) {
+	t.Setenv("ENV", "local")
+	os.Unsetenv("PORT")
+	os.Unsetenv("DATABASE_URL")
+	os.Unsetenv("REDIS_URL")
+	os.Unsetenv("JWT_SECRET")
+
+	cfg, err := LoadServerOnly()
+	require.NoError(t, err)
+
+	assert.Equal(t, 8000, cfg.Port)
+}
