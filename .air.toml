@@ -7,6 +7,13 @@ bin = "./tmp/api"
 delay = 500
 exclude_dir = ["tmp", "docker", "docs"]
 include_ext = ["go"]
+# Poll instead of relying on filesystem events. The source tree is bind-mounted
+# from the host, and inotify events do not cross the VM boundary that backs
+# Docker on macOS (colima, Docker Desktop) or Windows — air would sit there
+# seeing nothing while you edit, and "hot reload silently stopped working" is a
+# miserable thing to debug. Polling costs a little CPU and always works.
+poll = true
+poll_interval = 1000
 
 [log]
 time = true

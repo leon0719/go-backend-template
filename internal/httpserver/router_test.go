@@ -147,3 +147,33 @@ func TestRouter_AuthRoutesAreMounted(t *testing.T) {
 	r.ServeHTTP(rec3, httptest.NewRequest(http.MethodGet, "/api/v1/realtime/sse", nil))
 	assert.Equal(t, http.StatusUnauthorized, rec3.Code)
 }
+
+// The README and docs tell people to open /api/docs. httpSwagger serves under
+// a wildcard that chi does not match against the bare path, so without an
+// explicit redirect that documented URL 404s.
+func TestRouter_DocsBarePathRedirectsToSwaggerUI(t *testing.T) {
+	r := newTestRouter(t, baseConfig(), nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/docs", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusMovedPermanently, rec.Code)
+	assert.Equal(t, "/api/docs/index.html", rec.Header().Get("Location"))
+}
+
+func TestRouter_DocsServesOpenAPISpec(t *testing.T) {
+	r := newTestRouter(t, baseConfig(), nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/docs/doc.json", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var spec map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &spec))
+	paths, ok := spec["paths"].(map[string]any)
+	require.True(t, ok, "spec should carry a paths object")
+	assert.Contains(t, paths, "/auth/login")
+}

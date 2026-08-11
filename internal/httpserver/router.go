@@ -85,6 +85,12 @@ func NewRouter(deps Deps) http.Handler {
 	}
 	health.RegisterRoutes(r, deps.Pool, deps.Redis, appName, version)
 
+	// httpSwagger serves under the wildcard, which chi does NOT match against a
+	// bare "/api/docs" — that would 404, and "/api/docs" is exactly what the
+	// README and docs tell people to open. Redirect it to the real entry point.
+	r.Get("/api/docs", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/api/docs/index.html", http.StatusMovedPermanently)
+	})
 	r.Get("/api/docs/*", httpSwagger.WrapHandler)
 
 	r.Route("/api/v1/auth", func(ar chi.Router) {
