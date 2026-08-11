@@ -2,6 +2,7 @@ package articles
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
@@ -38,9 +39,22 @@ func (s *Service) Get(ctx context.Context, id, userID uuid.UUID) (sqlc.Article, 
 	return s.repo.GetOwned(ctx, id, userID)
 }
 
+// maxOffset caps the SQL OFFSET. The computation is done in int64 because
+// (page-1)*pageSize overflows int32 for large pages (e.g. page=100000000,
+// page_size=100), wrapping to a NEGATIVE offset that Postgres rejects with a
+// 500. Deep pagination past this point returns an empty page instead --
+// keyset pagination is the right answer if you genuinely need to go deeper.
+const maxOffset int64 = 1_000_000
+
 func (s *Service) List(ctx context.Context, userID uuid.UUID, status, q string, page, pageSize int32) ([]sqlc.Article, int64, error) {
-	offset := (page - 1) * pageSize
-	return s.repo.ListOwned(ctx, userID, status, q, pageSize, offset)
+	offset := (int64(page) - 1) * int64(pageSize)
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > maxOffset {
+		offset = maxOffset
+	}
+	return s.repo.ListOwned(ctx, userID, status, q, pageSize, int32(offset))
 }
 
 func (s *Service) Update(ctx context.Context, id, userID uuid.UUID, title, body *string) (sqlc.Article, error) {
@@ -57,12 +71,22 @@ func (s *Service) Publish(ctx context.Context, id, userID uuid.UUID) (sqlc.Artic
 		return sqlc.Article{}, err
 	}
 	if transitioned {
-		task, err := tasks.NewArticlePublishedTask(id.String())
-		if err != nil {
-			return sqlc.Article{}, err
-		}
-		if err := s.enqueue(task); err != nil {
-			return sqlc.Article{}, err
+		// DUAL-WRITE GAP: the status change is already committed. If enqueue
+		// fails we must NOT report failure -- the publish genuinely
+		// succeeded, and returning 500 would invite a retry that sees
+		// transitioned == false and silently succeeds without ever sending
+		// the webhook. Log loudly instead so the loss is recoverable, and
+		// keep the caller's view of the world truthful.
+		//
+		// The real fix is a transactional outbox: write the task row in the
+		// same transaction as the status change and have a relay drain it.
+		// See docs/backend-standards.md.
+		if task, err := tasks.NewArticlePublishedTask(id.String()); err != nil {
+			slog.ErrorContext(ctx, "failed to build article-published task; webhook will not be sent",
+				"article_id", id, "error", err)
+		} else if err := s.enqueue(task); err != nil {
+			slog.ErrorContext(ctx, "failed to enqueue article-published task; webhook will not be sent",
+				"article_id", id, "error", err)
 		}
 	}
 	return s.repo.GetOwned(ctx, id, userID)

@@ -1,18 +1,15 @@
 package accounts
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-playground/validator/v10"
 
 	"go-backend-template/internal/httpserver/middleware"
+	"go-backend-template/internal/httpserver/request"
 	"go-backend-template/internal/httpserver/respond"
 )
-
-var validate = validator.New()
 
 // authRateLimitKey derives a per-client-IP rate-limit key from the request.
 //
@@ -48,18 +45,6 @@ type handler struct {
 	svc *Service
 }
 
-func decodeAndValidate[T any](w http.ResponseWriter, r *http.Request, dst *T) bool {
-	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
-		respond.Error(w, http.StatusUnprocessableEntity, respond.CodeValidation, "invalid JSON body")
-		return false
-	}
-	if err := validate.Struct(dst); err != nil {
-		respond.Error(w, http.StatusUnprocessableEntity, respond.CodeValidation, err.Error())
-		return false
-	}
-	return true
-}
-
 // register godoc
 // @Summary      Register a new user
 // @Tags         auth
@@ -72,13 +57,13 @@ func decodeAndValidate[T any](w http.ResponseWriter, r *http.Request, dst *T) bo
 // @Router       /auth/register [post]
 func (h *handler) register(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
-	if !decodeAndValidate(w, r, &req) {
+	if !request.DecodeAndValidate(w, r, &req) {
 		return
 	}
 
 	access, refresh, err := h.svc.Register(r.Context(), req.Email, req.Password)
 	if errors.Is(err, ErrEmailTaken) {
-		respond.Error(w, http.StatusConflict, "email_taken", "email already registered")
+		respond.Error(w, http.StatusConflict, respond.CodeConflict, "email already registered")
 		return
 	}
 	if err != nil {
@@ -100,7 +85,7 @@ func (h *handler) register(w http.ResponseWriter, r *http.Request) {
 // @Router       /auth/login [post]
 func (h *handler) login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
-	if !decodeAndValidate(w, r, &req) {
+	if !request.DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -128,7 +113,7 @@ func (h *handler) login(w http.ResponseWriter, r *http.Request) {
 // @Router       /auth/refresh [post]
 func (h *handler) refresh(w http.ResponseWriter, r *http.Request) {
 	var req RefreshRequest
-	if !decodeAndValidate(w, r, &req) {
+	if !request.DecodeAndValidate(w, r, &req) {
 		return
 	}
 

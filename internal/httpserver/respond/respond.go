@@ -9,6 +9,7 @@ const (
 	CodeValidation   = "validation_error"
 	CodeUnauthorized = "unauthorized"
 	CodeNotFound     = "not_found"
+	CodeConflict     = "conflict"
 	CodeInternal     = "internal_error"
 	CodeRateLimited  = "rate_limited"
 )

@@ -1,21 +1,18 @@
 package articles
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 
 	"go-backend-template/internal/db/sqlc"
 	"go-backend-template/internal/httpserver/middleware"
+	"go-backend-template/internal/httpserver/request"
 	"go-backend-template/internal/httpserver/respond"
 )
-
-var articleValidate = validator.New()
 
 const (
 	defaultPageSize = 20
@@ -82,12 +79,7 @@ func (h *handler) create(w http.ResponseWriter, r *http.Request) {
 	userID, _ := middleware.UserIDFromContext(r.Context())
 
 	var req CreateArticleRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusUnprocessableEntity, respond.CodeValidation, "invalid JSON body")
-		return
-	}
-	if err := articleValidate.Struct(req); err != nil {
-		respond.Error(w, http.StatusUnprocessableEntity, respond.CodeValidation, err.Error())
+	if !request.DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -199,8 +191,7 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req UpdateArticleRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respond.Error(w, http.StatusUnprocessableEntity, respond.CodeValidation, "invalid JSON body")
+	if !request.DecodeAndValidate(w, r, &req) {
 		return
 	}
 

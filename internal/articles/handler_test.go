@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"go-backend-template/internal/accounts"
+	"go-backend-template/internal/httpserver/request"
 )
 
 func setupArticlesRouter(t *testing.T) (chi.Router, string) {
@@ -139,4 +140,72 @@ func TestHandler_PublishArticle(t *testing.T) {
 	var published ArticleResponse
 	require.NoError(t, json.Unmarshal(pubRec.Body.Bytes(), &published))
 	assert.Equal(t, "published", published.Status)
+}
+
+// TestHandler_UpdateArticle_RejectsBlankTitle guards the asymmetry that used
+// to exist between POST and PATCH: create required a non-empty title, but
+// update skipped validation entirely and happily blanked it.
+func TestHandler_UpdateArticle_RejectsBlankTitle(t *testing.T) {
+	r, token := setupArticlesRouter(t)
+	created := createArticle(t, r, token)
+
+	blank := ""
+	body, _ := json.Marshal(UpdateArticleRequest{Title: &blank})
+	req := httptest.NewRequest(http.MethodPatch, "/"+created.ID, bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
+func TestHandler_UpdateArticle_OmittedTitleIsAllowed(t *testing.T) {
+	r, token := setupArticlesRouter(t)
+	created := createArticle(t, r, token)
+
+	newBody := "updated"
+	body, _ := json.Marshal(UpdateArticleRequest{Body: &newBody})
+	req := httptest.NewRequest(http.MethodPatch, "/"+created.ID, bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var updated ArticleResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &updated))
+	assert.Equal(t, "Hello", updated.Title)
+	assert.Equal(t, "updated", updated.Body)
+}
+
+// TestHandler_CreateArticle_RejectsOversizedBody covers the shared
+// MaxBytesReader limit in internal/httpserver/request.
+func TestHandler_CreateArticle_RejectsOversizedBody(t *testing.T) {
+	r, token := setupArticlesRouter(t)
+
+	huge := bytes.Repeat([]byte("a"), int(request.MaxBodyBytes)+1024)
+	payload := append(append([]byte(`{"title":"x","body":"`), huge...), []byte(`"}`)...)
+
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(payload))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
+}
+
+// TestHandler_ListArticles_HugePageDoesNotOverflow guards the int32 OFFSET
+// overflow: (page-1)*page_size used to wrap negative and 500.
+func TestHandler_ListArticles_HugePageDoesNotOverflow(t *testing.T) {
+	r, token := setupArticlesRouter(t)
+	createArticle(t, r, token)
+
+	req := httptest.NewRequest(http.MethodGet, "/?page=100000000&page_size=100", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp ListArticlesResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Empty(t, resp.Items)
 }

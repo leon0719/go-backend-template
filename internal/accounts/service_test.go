@@ -161,3 +161,20 @@ func TestService_LogoutRevokesRefresh(t *testing.T) {
 	_, _, err = svc.Refresh(ctx, refresh)
 	assert.ErrorIs(t, err, ErrInvalidRefreshToken)
 }
+
+// TestService_Register_EmailIsCaseInsensitive guards against "A@x.com" and
+// "a@x.com" becoming two separate accounts, and against a user who
+// registered with mixed case being unable to log back in.
+func TestService_Register_EmailIsCaseInsensitive(t *testing.T) {
+	svc := NewService(newFakeRepo(), "secret")
+	ctx := context.Background()
+
+	_, _, err := svc.Register(ctx, "Alice@Example.COM", "password123")
+	require.NoError(t, err)
+
+	_, _, err = svc.Register(ctx, "alice@example.com", "password123")
+	assert.ErrorIs(t, err, ErrEmailTaken)
+
+	_, _, err = svc.Login(ctx, "ALICE@EXAMPLE.COM", "password123")
+	assert.NoError(t, err)
+}

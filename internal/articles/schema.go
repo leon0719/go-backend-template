@@ -5,8 +5,12 @@ type CreateArticleRequest struct {
 	Body  string `json:"body"`
 }
 
+// UpdateArticleRequest is a partial update: a nil field means "leave
+// unchanged". `omitempty` therefore skips validation when the field is
+// absent, but `min=1` still applies when it IS supplied -- otherwise PATCH
+// could blank a title that POST refuses to create empty.
 type UpdateArticleRequest struct {
-	Title *string `json:"title"`
+	Title *string `json:"title" validate:"omitempty,min=1"`
 	Body  *string `json:"body"`
 }
 

@@ -3,6 +3,7 @@ package accounts
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -57,12 +58,24 @@ func (s *Service) issueTokens(ctx context.Context, userID uuid.UUID) (access, re
 	return access, plain, nil
 }
 
+// normalizeEmail canonicalizes an address so "A@X.com" and "a@x.com" are the
+// same account. The domain part of an email is case-insensitive by spec and
+// effectively every provider treats the local part that way too, so folding
+// the whole address is the pragmatic choice -- and it must be applied on both
+// register and login or users cannot log back in.
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// Register creates a user and issues a token pair.
+//
+// There is deliberately NO "does this email already exist?" pre-check: it
+// would be a TOCTOU race (two concurrent registrations both pass, and the
+// loser gets a raw constraint error as a 500). Uniqueness is enforced by the
+// users_email_key UNIQUE constraint, and Repository.CreateUser translates
+// SQLSTATE 23505 into ErrEmailTaken -> 409.
 func (s *Service) Register(ctx context.Context, email, password string) (access, refresh string, err error) {
-	if _, err = s.repo.GetUserByEmail(ctx, email); err == nil {
-		return "", "", ErrEmailTaken
-	} else if !errors.Is(err, ErrNotFound) {
-		return "", "", err
-	}
+	email = normalizeEmail(email)
 
 	hash, err := HashPassword(password)
 	if err != nil {
@@ -76,7 +89,7 @@ func (s *Service) Register(ctx context.Context, email, password string) (access,
 }
 
 func (s *Service) Login(ctx context.Context, email, password string) (access, refresh string, err error) {
-	user, err := s.repo.GetUserByEmail(ctx, email)
+	user, err := s.repo.GetUserByEmail(ctx, normalizeEmail(email))
 	if err != nil {
 		return "", "", ErrInvalidCredentials
 	}
