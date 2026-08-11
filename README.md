@@ -93,6 +93,22 @@ docker/         # Dockerfiles + compose files (dev/prod) + Caddyfile
 
 See [docs/backend-standards.md](docs/backend-standards.md) for conventions.
 
+## Project Skills (`.claude/skills/`)
+
+Claude Code picks these up automatically; they encode this project's conventions so routine
+changes come back as a diff to review rather than a pile of hand edits to get right.
+
+| Skill | Use it for |
+|---|---|
+| `add-column` | Adding a DB column and threading it through migration → sqlc → repository → service → schema → handler → tests → OpenAPI |
+| `add-resource` | Adding a CRUD resource to an existing `internal/<app>` package |
+| `scaffold-app` | Creating a new `internal/<app>` package and mounting it |
+| `check` | The full local gate: gofmt, vet (both build tags), lint, unit + integration tests, generated-code drift |
+| `conventions-review` | Reviewing a diff against this project's rules — IDOR, layering leaks, migration safety, task idempotency |
+
+Adding a column touches ~14 places across six files plus two generated trees. The compiler
+catches most mistakes, but `add-column` is there so you don't have to make them first.
+
 ## Scope decisions (this template does not include)
 
 - No Django-admin equivalent management UI
