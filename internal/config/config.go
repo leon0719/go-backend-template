@@ -15,6 +15,8 @@ type Config struct {
 	RedisURL    string `env:"REDIS_URL,required"`
 	JWTSecret   string `env:"JWT_SECRET,required"`
 	LogLevel    string `env:"LOG_LEVEL" envDefault:"info"`
+
+	ArticlePublishedWebhookURL string `env:"ARTICLE_PUBLISHED_WEBHOOK_URL" envDefault:""`
 }
 
 func Load() (*Config, error) {

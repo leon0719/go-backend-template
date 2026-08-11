@@ -15,6 +15,7 @@ func TestLoad_ReadsEnvVars(t *testing.T) {
 	t.Setenv("REDIS_URL", "redis://localhost:6379")
 	t.Setenv("JWT_SECRET", "test-secret")
 	t.Setenv("LOG_LEVEL", "debug")
+	t.Setenv("ARTICLE_PUBLISHED_WEBHOOK_URL", "https://example.com/webhook")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -25,6 +26,7 @@ func TestLoad_ReadsEnvVars(t *testing.T) {
 	assert.Equal(t, "redis://localhost:6379", cfg.RedisURL)
 	assert.Equal(t, "test-secret", cfg.JWTSecret)
 	assert.Equal(t, "debug", cfg.LogLevel)
+	assert.Equal(t, "https://example.com/webhook", cfg.ArticlePublishedWebhookURL)
 }
 
 func TestLoad_MissingRequiredVar_ReturnsError(t *testing.T) {
