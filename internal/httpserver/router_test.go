@@ -1,11 +1,13 @@
 package httpserver_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -176,4 +178,50 @@ func TestRouter_DocsServesOpenAPISpec(t *testing.T) {
 	paths, ok := spec["paths"].(map[string]any)
 	require.True(t, ok, "spec should carry a paths object")
 	assert.Contains(t, paths, "/auth/login")
+}
+
+// A panic must appear in the access log, not just the panic log. This
+// depends on SlogLogger being registered before (outside) Recoverer so the
+// 500 Recoverer writes travels back through the status-capturing writer.
+func TestRouter_PanicIsRecordedInAccessLog(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	prev := slog.Default()
+	slog.SetDefault(logger)
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	r := httpserver.NewRouter(httpserver.Deps{
+		Config: baseConfig(),
+		Logger: logger,
+		ExtraRoutes: func(er chi.Router) {
+			er.Get("/boom", func(http.ResponseWriter, *http.Request) {
+				panic("kaboom")
+			})
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/boom", nil)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+
+	var sawPanic, sawAccess bool
+	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+		if line == "" {
+			continue
+		}
+		var entry map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &entry))
+		switch entry["msg"] {
+		case "panic recovered":
+			sawPanic = true
+		case "http request":
+			sawAccess = true
+			assert.Equal(t, float64(500), entry["status"], "access log must carry the 500")
+			assert.Equal(t, "ERROR", entry["level"], "5xx must log at Error")
+		}
+	}
+	assert.True(t, sawPanic, "expected a 'panic recovered' record")
+	assert.True(t, sawAccess, "expected an 'http request' access-log record for the panicking request")
 }

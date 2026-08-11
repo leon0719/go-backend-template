@@ -14,7 +14,11 @@ import (
 // error envelope so a panic looks like every other 500 to API clients.
 //
 // It must be mounted after RequestID (so the request id is in context) and
-// before SlogLogger (so SlogLogger observes the 500 status it writes).
+// INSIDE SlogLogger — that is, registered after it, since chi runs the
+// first-registered middleware outermost. Only then does the 500 written here
+// travel back out through SlogLogger's status-capturing writer and get an
+// access-log line; with the two the other way round, panicking requests were
+// logged as a panic but never appeared in the access log at all.
 func Recoverer(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {

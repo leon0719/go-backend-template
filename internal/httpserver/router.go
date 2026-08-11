@@ -46,9 +46,14 @@ type Deps struct {
 //
 //	RequestID  — mints/propagates X-Request-ID first so everything below can log it
 //	RealIP     — resolves the client IP (trusted-proxy aware) for logging + rate limits
+//	SlogLogger — logs the final status, including any 500 written by Recoverer
 //	Recoverer  — turns panics into the standard 500 envelope
-//	SlogLogger — logs the final status (including any 500 written by Recoverer)
 //	CORS       — no-op unless CORS_ALLOWED_ORIGINS is set
+//
+// SlogLogger sits OUTSIDE Recoverer deliberately. chi runs the first-registered
+// middleware outermost, so this is what lets Recoverer's 500 pass back through
+// SlogLogger's status-capturing writer. With the two swapped, a panicking
+// request produced no access-log line at all and the 500 went unrecorded.
 //
 // Route-specific middleware (RateLimit / JWTAuth) is mounted per-route by the
 // individual RegisterRoutes functions.
@@ -69,8 +74,8 @@ func NewRouter(deps Deps) http.Handler {
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP(trustedProxies))
-	r.Use(middleware.Recoverer)
 	r.Use(middleware.SlogLogger)
+	r.Use(middleware.Recoverer)
 	r.Use(middleware.CORS(deps.Config.CORSAllowedOrigins))
 
 	// Health endpoints are unversioned infra probes mounted at the router root.

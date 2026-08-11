@@ -52,30 +52,37 @@ func SlogLogger(next http.Handler) http.Handler {
 		start := time.Now()
 		sw := &statusWriter{ResponseWriter: w}
 
+		// Deferred so the request is still logged when something panics past
+		// this point. Recoverer runs inside this middleware and converts the
+		// panic to a 500 on sw, so the status below is accurate; the defer
+		// additionally covers http.ErrAbortHandler, which Recoverer re-panics
+		// on purpose and which would otherwise vanish from the access log.
+		defer func() {
+			status := sw.status
+			if status == 0 {
+				// Handler returned without writing anything; net/http sends 200.
+				status = http.StatusOK
+			}
+
+			level := slog.LevelInfo
+			switch {
+			case status >= 500:
+				level = slog.LevelError
+			case status >= 400:
+				level = slog.LevelWarn
+			}
+
+			slog.LogAttrs(r.Context(), level, "http request",
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.Int("status", status),
+				slog.Int("bytes", sw.bytes),
+				slog.Duration("duration", time.Since(start)),
+				slog.String("request_id", RequestIDFromContext(r.Context())),
+				slog.String("remote_ip", ClientIP(r)),
+			)
+		}()
+
 		next.ServeHTTP(sw, r)
-
-		status := sw.status
-		if status == 0 {
-			// Handler returned without writing anything; net/http sends 200.
-			status = http.StatusOK
-		}
-
-		level := slog.LevelInfo
-		switch {
-		case status >= 500:
-			level = slog.LevelError
-		case status >= 400:
-			level = slog.LevelWarn
-		}
-
-		slog.LogAttrs(r.Context(), level, "http request",
-			slog.String("method", r.Method),
-			slog.String("path", r.URL.Path),
-			slog.Int("status", status),
-			slog.Int("bytes", sw.bytes),
-			slog.Duration("duration", time.Since(start)),
-			slog.String("request_id", RequestIDFromContext(r.Context())),
-			slog.String("remote_ip", ClientIP(r)),
-		)
 	})
 }
