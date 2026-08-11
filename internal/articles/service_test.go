@@ -26,8 +26,8 @@ func newFakeArticlesRepo() *fakeArticlesRepo {
 	return &fakeArticlesRepo{items: map[uuid.UUID]sqlc.Article{}}
 }
 
-func (f *fakeArticlesRepo) Create(ctx context.Context, userID uuid.UUID, title, body string) (sqlc.Article, error) {
-	a := sqlc.Article{ID: uuid.New(), UserID: userID, Title: title, Body: body, Status: "draft"}
+func (f *fakeArticlesRepo) Create(ctx context.Context, userID uuid.UUID, title, body, summary string) (sqlc.Article, error) {
+	a := sqlc.Article{ID: uuid.New(), UserID: userID, Title: title, Body: body, Summary: summary, Status: "draft"}
 	f.items[a.ID] = a
 	return a, nil
 }
@@ -63,7 +63,7 @@ func (f *fakeArticlesRepo) ListOwned(ctx context.Context, userID uuid.UUID, stat
 	return page, total, nil
 }
 
-func (f *fakeArticlesRepo) Update(ctx context.Context, id, userID uuid.UUID, title, body *string) (sqlc.Article, error) {
+func (f *fakeArticlesRepo) Update(ctx context.Context, id, userID uuid.UUID, title, body, summary *string) (sqlc.Article, error) {
 	a, ok := f.items[id]
 	if !ok || a.UserID != userID {
 		return sqlc.Article{}, ErrNotFound
@@ -73,6 +73,9 @@ func (f *fakeArticlesRepo) Update(ctx context.Context, id, userID uuid.UUID, tit
 	}
 	if body != nil {
 		a.Body = *body
+	}
+	if summary != nil {
+		a.Summary = *summary
 	}
 	f.items[id] = a
 	return a, nil
@@ -107,7 +110,7 @@ func TestService_Publish_EnqueuesTaskOnlyOnTransition(t *testing.T) {
 
 	ctx := context.Background()
 	userID := uuid.New()
-	created, err := svc.Create(ctx, userID, "T", "B")
+	created, err := svc.Create(ctx, userID, "T", "B", "")
 	require.NoError(t, err)
 
 	_, err = svc.Publish(ctx, created.ID, userID)
@@ -125,7 +128,7 @@ func TestService_Get_OtherUsersArticle_ReturnsNotFound(t *testing.T) {
 
 	ctx := context.Background()
 	owner := uuid.New()
-	created, err := svc.Create(ctx, owner, "T", "B")
+	created, err := svc.Create(ctx, owner, "T", "B", "")
 	require.NoError(t, err)
 
 	_, err = svc.Get(ctx, created.ID, uuid.New())
@@ -144,7 +147,7 @@ func TestService_Publish_EnqueueFailureStillSucceeds(t *testing.T) {
 
 	ctx := context.Background()
 	userID := uuid.New()
-	created, err := svc.Create(ctx, userID, "T", "B")
+	created, err := svc.Create(ctx, userID, "T", "B", "")
 	require.NoError(t, err)
 
 	got, err := svc.Publish(ctx, created.ID, userID)
@@ -158,7 +161,7 @@ func TestService_List_HugePageDoesNotOverflowOffset(t *testing.T) {
 
 	ctx := context.Background()
 	userID := uuid.New()
-	_, err := svc.Create(ctx, userID, "T", "B")
+	_, err := svc.Create(ctx, userID, "T", "B", "")
 	require.NoError(t, err)
 
 	// (100000000-1)*100 overflows int32; the offset must stay non-negative.

@@ -33,19 +33,25 @@ func (q *Queries) CountOwnedArticles(ctx context.Context, arg CountOwnedArticles
 }
 
 const createArticle = `-- name: CreateArticle :one
-INSERT INTO articles (user_id, title, body)
-VALUES ($1, $2, $3)
-RETURNING id, user_id, title, body, status, created_at, updated_at
+INSERT INTO articles (user_id, title, body, summary)
+VALUES ($1, $2, $3, $4)
+RETURNING id, user_id, title, body, status, created_at, updated_at, summary
 `
 
 type CreateArticleParams struct {
-	UserID uuid.UUID `json:"user_id"`
-	Title  string    `json:"title"`
-	Body   string    `json:"body"`
+	UserID  uuid.UUID `json:"user_id"`
+	Title   string    `json:"title"`
+	Body    string    `json:"body"`
+	Summary string    `json:"summary"`
 }
 
 func (q *Queries) CreateArticle(ctx context.Context, arg CreateArticleParams) (Article, error) {
-	row := q.db.QueryRow(ctx, createArticle, arg.UserID, arg.Title, arg.Body)
+	row := q.db.QueryRow(ctx, createArticle,
+		arg.UserID,
+		arg.Title,
+		arg.Body,
+		arg.Summary,
+	)
 	var i Article
 	err := row.Scan(
 		&i.ID,
@@ -55,6 +61,7 @@ func (q *Queries) CreateArticle(ctx context.Context, arg CreateArticleParams) (A
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Summary,
 	)
 	return i, err
 }
@@ -77,7 +84,7 @@ func (q *Queries) DeleteArticle(ctx context.Context, arg DeleteArticleParams) (i
 }
 
 const getOwnedArticle = `-- name: GetOwnedArticle :one
-SELECT id, user_id, title, body, status, created_at, updated_at FROM articles WHERE id = $1 AND user_id = $2
+SELECT id, user_id, title, body, status, created_at, updated_at, summary FROM articles WHERE id = $1 AND user_id = $2
 `
 
 type GetOwnedArticleParams struct {
@@ -96,12 +103,13 @@ func (q *Queries) GetOwnedArticle(ctx context.Context, arg GetOwnedArticleParams
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Summary,
 	)
 	return i, err
 }
 
 const listOwnedArticles = `-- name: ListOwnedArticles :many
-SELECT id, user_id, title, body, status, created_at, updated_at FROM articles
+SELECT id, user_id, title, body, status, created_at, updated_at, summary FROM articles
 WHERE user_id = $1
   AND ($2::text = '' OR status = $2)
   AND ($3::text = '' OR title ILIKE '%' || $3 || '%')
@@ -140,6 +148,7 @@ func (q *Queries) ListOwnedArticles(ctx context.Context, arg ListOwnedArticlesPa
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Summary,
 		); err != nil {
 			return nil, err
 		}
@@ -173,16 +182,18 @@ const updateArticle = `-- name: UpdateArticle :one
 UPDATE articles
 SET title = coalesce($3, title),
     body = coalesce($4, body),
+    summary = coalesce($5, summary),
     updated_at = now()
 WHERE id = $1 AND user_id = $2
-RETURNING id, user_id, title, body, status, created_at, updated_at
+RETURNING id, user_id, title, body, status, created_at, updated_at, summary
 `
 
 type UpdateArticleParams struct {
-	ID     uuid.UUID   `json:"id"`
-	UserID uuid.UUID   `json:"user_id"`
-	Title  pgtype.Text `json:"title"`
-	Body   pgtype.Text `json:"body"`
+	ID      uuid.UUID   `json:"id"`
+	UserID  uuid.UUID   `json:"user_id"`
+	Title   pgtype.Text `json:"title"`
+	Body    pgtype.Text `json:"body"`
+	Summary pgtype.Text `json:"summary"`
 }
 
 func (q *Queries) UpdateArticle(ctx context.Context, arg UpdateArticleParams) (Article, error) {
@@ -191,6 +202,7 @@ func (q *Queries) UpdateArticle(ctx context.Context, arg UpdateArticleParams) (A
 		arg.UserID,
 		arg.Title,
 		arg.Body,
+		arg.Summary,
 	)
 	var i Article
 	err := row.Scan(
@@ -201,6 +213,7 @@ func (q *Queries) UpdateArticle(ctx context.Context, arg UpdateArticleParams) (A
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Summary,
 	)
 	return i, err
 }

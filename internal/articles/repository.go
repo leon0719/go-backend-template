@@ -30,8 +30,8 @@ func textFromPtr(s *string) pgtype.Text {
 	return pgtype.Text{String: *s, Valid: true}
 }
 
-func (r *Repository) Create(ctx context.Context, userID uuid.UUID, title, body string) (sqlc.Article, error) {
-	a, err := r.q.CreateArticle(ctx, sqlc.CreateArticleParams{UserID: userID, Title: title, Body: body})
+func (r *Repository) Create(ctx context.Context, userID uuid.UUID, title, body, summary string) (sqlc.Article, error) {
+	a, err := r.q.CreateArticle(ctx, sqlc.CreateArticleParams{UserID: userID, Title: title, Body: body, Summary: summary})
 	return a, dberr.WrapNotFound(err)
 }
 
@@ -54,12 +54,13 @@ func (r *Repository) ListOwned(ctx context.Context, userID uuid.UUID, status, q 
 	return items, total, nil
 }
 
-func (r *Repository) Update(ctx context.Context, id, userID uuid.UUID, title, body *string) (sqlc.Article, error) {
+func (r *Repository) Update(ctx context.Context, id, userID uuid.UUID, title, body, summary *string) (sqlc.Article, error) {
 	a, err := r.q.UpdateArticle(ctx, sqlc.UpdateArticleParams{
-		ID:     id,
-		UserID: userID,
-		Title:  textFromPtr(title),
-		Body:   textFromPtr(body),
+		ID:      id,
+		UserID:  userID,
+		Title:   textFromPtr(title),
+		Body:    textFromPtr(body),
+		Summary: textFromPtr(summary),
 	})
 	return a, dberr.WrapNotFound(err)
 }

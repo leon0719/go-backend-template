@@ -561,6 +561,9 @@
                 "status": {
                     "type": "string"
                 },
+                "summary": {
+                    "type": "string"
+                },
                 "title": {
                     "type": "string"
                 }
@@ -574,6 +577,10 @@
             "properties": {
                 "body": {
                     "type": "string"
+                },
+                "summary": {
+                    "type": "string",
+                    "maxLength": 280
                 },
                 "title": {
                     "type": "string"
@@ -605,6 +612,10 @@
             "properties": {
                 "body": {
                     "type": "string"
+                },
+                "summary": {
+                    "type": "string",
+                    "maxLength": 280
                 },
                 "title": {
                     "type": "string",

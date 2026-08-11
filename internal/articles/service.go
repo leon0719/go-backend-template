@@ -12,10 +12,10 @@ import (
 )
 
 type articlesRepository interface {
-	Create(ctx context.Context, userID uuid.UUID, title, body string) (sqlc.Article, error)
+	Create(ctx context.Context, userID uuid.UUID, title, body, summary string) (sqlc.Article, error)
 	GetOwned(ctx context.Context, id, userID uuid.UUID) (sqlc.Article, error)
 	ListOwned(ctx context.Context, userID uuid.UUID, status, q string, limit, offset int32) ([]sqlc.Article, int64, error)
-	Update(ctx context.Context, id, userID uuid.UUID, title, body *string) (sqlc.Article, error)
+	Update(ctx context.Context, id, userID uuid.UUID, title, body, summary *string) (sqlc.Article, error)
 	Delete(ctx context.Context, id, userID uuid.UUID) error
 	PublishIfDraft(ctx context.Context, id, userID uuid.UUID) (bool, error)
 }
@@ -31,8 +31,8 @@ func NewService(repo articlesRepository, enqueue func(*asynq.Task) error) *Servi
 	return &Service{repo: repo, enqueue: enqueue}
 }
 
-func (s *Service) Create(ctx context.Context, userID uuid.UUID, title, body string) (sqlc.Article, error) {
-	return s.repo.Create(ctx, userID, title, body)
+func (s *Service) Create(ctx context.Context, userID uuid.UUID, title, body, summary string) (sqlc.Article, error) {
+	return s.repo.Create(ctx, userID, title, body, summary)
 }
 
 func (s *Service) Get(ctx context.Context, id, userID uuid.UUID) (sqlc.Article, error) {
@@ -57,8 +57,8 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID, status, q string, 
 	return s.repo.ListOwned(ctx, userID, status, q, pageSize, int32(offset))
 }
 
-func (s *Service) Update(ctx context.Context, id, userID uuid.UUID, title, body *string) (sqlc.Article, error) {
-	return s.repo.Update(ctx, id, userID, title, body)
+func (s *Service) Update(ctx context.Context, id, userID uuid.UUID, title, body, summary *string) (sqlc.Article, error) {
+	return s.repo.Update(ctx, id, userID, title, body, summary)
 }
 
 func (s *Service) Delete(ctx context.Context, id, userID uuid.UUID) error {

@@ -54,7 +54,7 @@ func TestRepository_CreateGetListUpdateDelete(t *testing.T) {
 	repo, userID := setupArticlesRepo(t)
 	ctx := context.Background()
 
-	created, err := repo.Create(ctx, userID, "Title", "Body")
+	created, err := repo.Create(ctx, userID, "Title", "Body", "")
 	require.NoError(t, err)
 	assert.Equal(t, "draft", created.Status)
 
@@ -72,7 +72,7 @@ func TestRepository_CreateGetListUpdateDelete(t *testing.T) {
 	assert.Equal(t, int64(1), total)
 
 	newTitle := "Updated"
-	updated, err := repo.Update(ctx, created.ID, userID, &newTitle, nil)
+	updated, err := repo.Update(ctx, created.ID, userID, &newTitle, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated", updated.Title)
 
@@ -85,7 +85,7 @@ func TestRepository_PublishIfDraft_OnlyPublishesOnce(t *testing.T) {
 	repo, userID := setupArticlesRepo(t)
 	ctx := context.Background()
 
-	created, err := repo.Create(ctx, userID, "Title", "Body")
+	created, err := repo.Create(ctx, userID, "Title", "Body", "")
 	require.NoError(t, err)
 
 	published, err := repo.PublishIfDraft(ctx, created.ID, userID)
@@ -95,4 +95,21 @@ func TestRepository_PublishIfDraft_OnlyPublishesOnce(t *testing.T) {
 	publishedAgain, err := repo.PublishIfDraft(ctx, created.ID, userID)
 	require.NoError(t, err)
 	assert.False(t, publishedAgain)
+}
+
+func TestRepository_SummaryRoundTrips(t *testing.T) {
+	repo, userID := setupArticlesRepo(t)
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, userID, "Title", "Body", "a short summary")
+	require.NoError(t, err)
+	assert.Equal(t, "a short summary", created.Summary)
+
+	// Updating only the title must leave summary alone — that is what the
+	// coalesce(sqlc.narg(...)) form in the UPDATE buys us.
+	newTitle := "Changed"
+	updated, err := repo.Update(ctx, created.ID, userID, &newTitle, nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "Changed", updated.Title)
+	assert.Equal(t, "a short summary", updated.Summary)
 }

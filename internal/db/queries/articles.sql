@@ -1,6 +1,6 @@
 -- name: CreateArticle :one
-INSERT INTO articles (user_id, title, body)
-VALUES ($1, $2, $3)
+INSERT INTO articles (user_id, title, body, summary)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: GetOwnedArticle :one
@@ -24,6 +24,7 @@ WHERE user_id = $1
 UPDATE articles
 SET title = coalesce(sqlc.narg('title'), title),
     body = coalesce(sqlc.narg('body'), body),
+    summary = coalesce(sqlc.narg('summary'), summary),
     updated_at = now()
 WHERE id = $1 AND user_id = $2
 RETURNING *;

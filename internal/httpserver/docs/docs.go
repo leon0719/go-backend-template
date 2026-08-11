@@ -568,6 +568,9 @@ const docTemplate = `{
                 "status": {
                     "type": "string"
                 },
+                "summary": {
+                    "type": "string"
+                },
                 "title": {
                     "type": "string"
                 }
@@ -581,6 +584,10 @@ const docTemplate = `{
             "properties": {
                 "body": {
                     "type": "string"
+                },
+                "summary": {
+                    "type": "string",
+                    "maxLength": 280
                 },
                 "title": {
                     "type": "string"
@@ -612,6 +619,10 @@ const docTemplate = `{
             "properties": {
                 "body": {
                     "type": "string"
+                },
+                "summary": {
+                    "type": "string",
+                    "maxLength": 280
                 },
                 "title": {
                     "type": "string",

@@ -53,7 +53,7 @@ type handler struct {
 }
 
 func toResponse(a sqlc.Article) ArticleResponse {
-	return ArticleResponse{ID: a.ID.String(), Title: a.Title, Body: a.Body, Status: a.Status}
+	return ArticleResponse{ID: a.ID.String(), Title: a.Title, Body: a.Body, Summary: a.Summary, Status: a.Status}
 }
 
 func parseID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
@@ -83,7 +83,7 @@ func (h *handler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a, err := h.svc.Create(r.Context(), userID, req.Title, req.Body)
+	a, err := h.svc.Create(r.Context(), userID, req.Title, req.Body, req.Summary)
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, respond.CodeInternal, "create failed")
 		return
@@ -198,7 +198,7 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a, err := h.svc.Update(r.Context(), id, userID, req.Title, req.Body)
+	a, err := h.svc.Update(r.Context(), id, userID, req.Title, req.Body, req.Summary)
 	if errors.Is(err, ErrNotFound) {
 		respond.Error(w, http.StatusNotFound, respond.CodeNotFound, "article not found")
 		return

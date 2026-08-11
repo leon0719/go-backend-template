@@ -50,12 +50,17 @@ definitions:
         type: string
       status:
         type: string
+      summary:
+        type: string
       title:
         type: string
     type: object
   articles.CreateArticleRequest:
     properties:
       body:
+        type: string
+      summary:
+        maxLength: 280
         type: string
       title:
         type: string
@@ -78,6 +83,9 @@ definitions:
   articles.UpdateArticleRequest:
     properties:
       body:
+        type: string
+      summary:
+        maxLength: 280
         type: string
       title:
         minLength: 1
