@@ -12,15 +12,28 @@
 # other project's containers as orphans.
 name: go-backend-template-dev
 
+# Config for the containers lives HERE, not in .env.local.
+#
+# .env.local is deliberately not wired in as an env_file. Compose ranks
+# `environment:` above `env_file:`, so every value below would win anyway and a
+# .env.local sitting next to it would be read and silently discarded -- someone
+# setting a real JWT_SECRET there would keep running on the dev default while
+# believing otherwise. The two also disagree by construction: .env.local.example
+# points at localhost because it configures host-side runs (`make migrate`,
+# `go run ./cmd/api`), whereas containers must reach each other by service name.
+#
+# To override a value for the stack, export it in your shell:
+#   JWT_SECRET=something-else make up
 x-app-env: &app-env
   ENV: local
-  DATABASE_URL: postgres://postgres:postgres@postgres:5432/go_backend_template?sslmode=disable
-  REDIS_URL: redis://redis:6379
-  JWT_SECRET: dev-secret-change-me
-  LOG_LEVEL: debug
+  DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/go_backend_template?sslmode=disable}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+  JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+  LOG_LEVEL: ${LOG_LEVEL:-debug}
   # Empty in dev: no reverse proxy in front, and CORS off by default.
-  CORS_ALLOWED_ORIGINS: ""
-  TRUSTED_PROXIES: ""
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+  TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+  ARTICLE_PUBLISHED_WEBHOOK_URL: ${ARTICLE_PUBLISHED_WEBHOOK_URL:-}
 
 x-app-build: &app-build
   context: ..
@@ -35,10 +48,6 @@ x-go-caches: &go-caches
   - gobuild:/root/.cache/go-build
   - gomod:/go/pkg/mod
 
-x-env-file: &env-file
-  - path: ../.env.local
-    required: false
-
 services:
   # One-off migration job, mirroring the prod stack. Runs the same
   # cmd/migrate binary (goose migrations embedded via embed.FS).
@@ -46,7 +55,6 @@ services:
     build: *app-build
     command: ["go", "run", "./cmd/migrate", "up"]
     environment: *app-env
-    env_file: *env-file
     volumes: *go-caches
     depends_on:
       postgres:
@@ -59,7 +67,6 @@ services:
     environment:
       <<: *app-env
       PORT: "8000"
-    env_file: *env-file
     volumes: *go-caches
     depends_on:
       postgres:
@@ -82,7 +89,6 @@ services:
     build: *app-build
     command: ["air", "-c", ".air.worker.toml"]
     environment: *app-env
-    env_file: *env-file
     volumes: *go-caches
     depends_on:
       postgres:
@@ -99,7 +105,6 @@ services:
     build: *app-build
     command: ["air", "-c", ".air.scheduler.toml"]
     environment: *app-env
-    env_file: *env-file
     volumes: *go-caches
     depends_on:
       redis:

@@ -16,7 +16,22 @@ Read by `internal/config.Config` (full app: `cmd/api`, `cmd/worker`). Two narrow
 | `TRUSTED_PROXIES` | no | `""` | Comma-separated CIDRs allowed to set `X-Forwarded-For`. Empty = header ignored, `RemoteAddr` used |
 | `ARTICLE_PUBLISHED_WEBHOOK_URL` | no | `""` | If empty, the publish task is a no-op |
 
-`DATABASE_URL`/`REDIS_URL`/`JWT_SECRET` are marked required by struct tags (`env:"...,required"`) — `config.Load()` returns an error if they're unset. In the dev Compose stack you don't need to set these yourself: `docker/docker-compose.dev.yml` supplies working defaults directly in its `environment:` block, and `.env.local` (if present) is loaded on top and can override them.
+`DATABASE_URL`/`REDIS_URL`/`JWT_SECRET` are marked required by struct tags (`env:"...,required"`) — `config.Load()` returns an error if they're unset.
+
+**`.env.local` and the Docker stack configure different things.** Keeping this straight avoids a nasty class of confusion:
+
+| | Configured by | Reaches Postgres/Redis at |
+|---|---|---|
+| `make up` (containers) | the `environment:` block in `docker/docker-compose.dev.yml` | `postgres:5432` / `redis:6379` (service names) |
+| Host-side runs — `make migrate`, `go run ./cmd/api` | `.env.local`, loaded by `godotenv` at startup | `localhost:5432` / `localhost:6380` |
+
+So `make up` needs no `.env.local` at all: Compose carries working defaults. And `.env.local` is deliberately *not* wired into Compose as an `env_file` — Compose ranks `environment:` above `env_file:`, so the values in the compose file would win regardless, and a `.env.local` listed there would be read and silently discarded. Someone putting a real `JWT_SECRET` in it would keep running on the dev default while believing they'd changed it. The two also disagree by construction, per the table above: the same `DATABASE_URL` cannot be right for both.
+
+To override a value for the containers, export it in your shell — the compose file interpolates each one with a default:
+
+```bash
+JWT_SECRET=something-else LOG_LEVEL=warn make up
+```
 
 ## Daily commands
 
