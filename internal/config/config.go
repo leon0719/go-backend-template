@@ -8,9 +8,29 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// ServerConfig holds only the settings needed to know where the server is
+// listening. It is used by the in-container healthcheck probe, which must
+// work regardless of unrelated config (DATABASE_URL/REDIS_URL/JWT_SECRET).
+// Config embeds it so the Port/Env defaults are declared exactly once.
+type ServerConfig struct {
+	Env  string `env:"ENV" envDefault:"local"`
+	Port int    `env:"PORT" envDefault:"8000"`
+}
+
+// LoadServerOnly loads only ServerConfig (Env/Port), for the in-container
+// healthcheck probe which must work regardless of unrelated config.
+func LoadServerOnly() (*ServerConfig, error) {
+	loadDotenv()
+
+	cfg := &ServerConfig{}
+	if err := env.Parse(cfg); err != nil {
+		return nil, fmt.Errorf("parse server config: %w", err)
+	}
+	return cfg, nil
+}
+
 type Config struct {
-	Env         string `env:"ENV" envDefault:"local"`
-	Port        int    `env:"PORT" envDefault:"8000"`
+	ServerConfig
 	DatabaseURL string `env:"DATABASE_URL,required"`
 	RedisURL    string `env:"REDIS_URL,required"`
 	JWTSecret   string `env:"JWT_SECRET,required"`
@@ -45,26 +65,6 @@ func LoadDatabaseOnly() (*DatabaseConfig, error) {
 	cfg := &DatabaseConfig{}
 	if err := env.Parse(cfg); err != nil {
 		return nil, fmt.Errorf("parse database config: %w", err)
-	}
-	return cfg, nil
-}
-
-// ServerConfig holds only the settings needed to know where the server is
-// listening. It is used by the in-container healthcheck probe, which must
-// work regardless of unrelated config (DATABASE_URL/REDIS_URL/JWT_SECRET).
-type ServerConfig struct {
-	Env  string `env:"ENV" envDefault:"local"`
-	Port int    `env:"PORT" envDefault:"8000"`
-}
-
-// LoadServerOnly loads only ServerConfig (Env/Port), for the in-container
-// healthcheck probe which must work regardless of unrelated config.
-func LoadServerOnly() (*ServerConfig, error) {
-	loadDotenv()
-
-	cfg := &ServerConfig{}
-	if err := env.Parse(cfg); err != nil {
-		return nil, fmt.Errorf("parse server config: %w", err)
 	}
 	return cfg, nil
 }
