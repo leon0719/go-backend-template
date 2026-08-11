@@ -10,6 +10,7 @@ const (
 	CodeUnauthorized = "unauthorized"
 	CodeNotFound     = "not_found"
 	CodeInternal     = "internal_error"
+	CodeRateLimited  = "rate_limited"
 )
 
 type errorBody struct {
