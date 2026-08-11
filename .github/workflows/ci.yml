@@ -8,6 +8,12 @@ on:
 # Tool versions are pinned so a new upstream release can never silently
 # change CI behavior (a new linter default failing every PR, or a sqlc/swag
 # codegen change breaking the drift check). Bump these deliberately.
+#
+# GOLANGCI_LINT_VERSION is coupled to the major version of
+# golangci/golangci-lint-action below: the action rejects a golangci-lint
+# major it predates ("golangci-lint v2 is not supported by
+# golangci-lint-action v6"). Moving golangci-lint across a major means
+# bumping the action too.
 env:
   GOLANGCI_LINT_VERSION: v2.12.2
   SQLC_VERSION: v1.31.1
@@ -17,9 +23,9 @@ jobs:
   lint-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
@@ -34,7 +40,7 @@ jobs:
           fi
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
 
@@ -75,6 +81,6 @@ jobs:
   docker-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build prod image
         run: docker build -f docker/Dockerfile.prod -t go-backend-template:ci .
