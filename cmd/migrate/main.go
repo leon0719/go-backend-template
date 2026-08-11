@@ -15,16 +15,12 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"os"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/pressly/goose/v3"
-
 	"go-backend-template/internal/config"
-	"go-backend-template/internal/db/migrations"
+	"go-backend-template/internal/db"
 )
 
 func main() {
@@ -44,24 +40,13 @@ func run() error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	goose.SetBaseFS(migrations.FS)
-	if err := goose.SetDialect("postgres"); err != nil {
-		return err
-	}
-
-	db, err := sql.Open("pgx", dbCfg.DatabaseURL)
-	if err != nil {
-		return fmt.Errorf("open db: %w", err)
-	}
-	defer db.Close()
-
 	switch command {
 	case "up":
-		return goose.Up(db, ".")
+		return db.MigrateUp(dbCfg.DatabaseURL)
 	case "down":
-		return goose.Down(db, ".")
+		return db.MigrateDown(dbCfg.DatabaseURL)
 	case "status":
-		return goose.Status(db, ".")
+		return db.MigrateStatus(dbCfg.DatabaseURL)
 	default:
 		return fmt.Errorf("unknown command %q (expected up|down|status)", command)
 	}

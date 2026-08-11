@@ -38,27 +38,11 @@ func setupTestRepo(t *testing.T) *Repository {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 
-	// Run migrations via goose programmatically is out of scope here;
-	// tests assume `goose up` has been run against connStr, or use a
-	// migrate helper — see Task 5 pattern. For this task, apply schema directly:
-	_, err = pool.Exec(ctx, `
-		CREATE EXTENSION IF NOT EXISTS pgcrypto;
-		CREATE TABLE users (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			email TEXT NOT NULL UNIQUE,
-			password_hash TEXT NOT NULL,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-		);
-		CREATE TABLE refresh_tokens (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-			token_digest TEXT NOT NULL UNIQUE,
-			expires_at TIMESTAMPTZ NOT NULL,
-			revoked_at TIMESTAMPTZ,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-		);
-	`)
-	require.NoError(t, err)
+	// Apply the REAL migrations rather than a hand-written copy of the schema.
+	// The copy that used to live here had already drifted: it predated the
+	// case-insensitive email index, so a test could pass against a table shape
+	// production no longer has.
+	require.NoError(t, db.MigrateUp(connStr))
 
 	return NewRepository(sqlc.New(pool))
 }
@@ -105,4 +89,19 @@ func TestRepository_RefreshTokenLifecycle(t *testing.T) {
 	revoked, err := repo.GetRefreshTokenByDigest(ctx, "digest-1")
 	require.NoError(t, err)
 	assert.True(t, revoked.RevokedAt.Valid)
+}
+
+// The service lowercases addresses before they reach the repository, so this
+// goes straight to the repository to prove the guarantee holds even when it
+// doesn't. The plain UNIQUE on email cannot catch this — the two strings
+// differ — so a pass here means the functional index is doing the work.
+func TestRepository_CreateUser_EmailIsCaseInsensitive(t *testing.T) {
+	repo := setupTestRepo(t)
+	ctx := context.Background()
+
+	_, err := repo.CreateUser(ctx, "Someone@Example.com", "hash")
+	require.NoError(t, err)
+
+	_, err = repo.CreateUser(ctx, "someone@example.com", "hash")
+	assert.ErrorIs(t, err, ErrEmailTaken)
 }

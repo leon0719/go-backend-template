@@ -38,20 +38,11 @@ func setupArticlesRepo(t *testing.T) (*Repository, uuid.UUID) {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 
-	_, err = pool.Exec(ctx, `
-		CREATE EXTENSION IF NOT EXISTS pgcrypto;
-		CREATE TABLE users (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), email TEXT, password_hash TEXT, created_at TIMESTAMPTZ DEFAULT now());
-		CREATE TABLE articles (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-			title TEXT NOT NULL,
-			body TEXT NOT NULL DEFAULT '',
-			status TEXT NOT NULL DEFAULT 'draft',
-			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-			updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-		);
-	`)
-	require.NoError(t, err)
+	// Apply the REAL migrations rather than a hand-written copy of the schema.
+	// The copy that used to live here had already drifted: it predated the
+	// case-insensitive email index, so a test could pass against a table shape
+	// production no longer has.
+	require.NoError(t, db.MigrateUp(connStr))
 
 	var userID uuid.UUID
 	require.NoError(t, pool.QueryRow(ctx, `INSERT INTO users (email, password_hash) VALUES ('a@example.com', 'x') RETURNING id`).Scan(&userID))
