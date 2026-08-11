@@ -68,6 +68,16 @@ func parseID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	return id, true
 }
 
+// create godoc
+// @Summary      Create an article
+// @Tags         articles
+// @Security     BearerAuth
+// @Accept       json
+// @Produce      json
+// @Param        body body CreateArticleRequest true "Article payload"
+// @Success      201 {object} ArticleResponse
+// @Failure      422 {object} respond.ErrorResponse
+// @Router       /articles [post]
 func (h *handler) create(w http.ResponseWriter, r *http.Request) {
 	userID, _ := middleware.UserIDFromContext(r.Context())
 
@@ -89,6 +99,15 @@ func (h *handler) create(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, toResponse(a))
 }
 
+// get godoc
+// @Summary      Get an article by ID
+// @Tags         articles
+// @Security     BearerAuth
+// @Produce      json
+// @Param        id path string true "Article ID"
+// @Success      200 {object} ArticleResponse
+// @Failure      404 {object} respond.ErrorResponse
+// @Router       /articles/{id} [get]
 func (h *handler) get(w http.ResponseWriter, r *http.Request) {
 	userID, _ := middleware.UserIDFromContext(r.Context())
 	id, ok := parseID(w, r)
@@ -127,6 +146,17 @@ func clampInt(raw string, defaultVal, min, max int32) int32 {
 	return n
 }
 
+// list godoc
+// @Summary      List the caller's articles
+// @Tags         articles
+// @Security     BearerAuth
+// @Produce      json
+// @Param        page query int false "Page number"
+// @Param        page_size query int false "Page size (max 100)"
+// @Param        status query string false "Filter by status"
+// @Param        q query string false "Search title"
+// @Success      200 {object} ListArticlesResponse
+// @Router       /articles [get]
 func (h *handler) list(w http.ResponseWriter, r *http.Request) {
 	userID, _ := middleware.UserIDFromContext(r.Context())
 
@@ -149,6 +179,18 @@ func (h *handler) list(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, resp)
 }
 
+// update godoc
+// @Summary      Update an article
+// @Tags         articles
+// @Security     BearerAuth
+// @Accept       json
+// @Produce      json
+// @Param        id path string true "Article ID"
+// @Param        body body UpdateArticleRequest true "Article payload"
+// @Success      200 {object} ArticleResponse
+// @Failure      422 {object} respond.ErrorResponse
+// @Failure      404 {object} respond.ErrorResponse
+// @Router       /articles/{id} [patch]
 func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	userID, _ := middleware.UserIDFromContext(r.Context())
 	id, ok := parseID(w, r)
@@ -174,6 +216,14 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, toResponse(a))
 }
 
+// delete godoc
+// @Summary      Delete an article
+// @Tags         articles
+// @Security     BearerAuth
+// @Param        id path string true "Article ID"
+// @Success      204 "No Content"
+// @Failure      404 {object} respond.ErrorResponse
+// @Router       /articles/{id} [delete]
 func (h *handler) delete(w http.ResponseWriter, r *http.Request) {
 	userID, _ := middleware.UserIDFromContext(r.Context())
 	id, ok := parseID(w, r)
@@ -193,6 +243,15 @@ func (h *handler) delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// publish godoc
+// @Summary      Publish an article
+// @Tags         articles
+// @Security     BearerAuth
+// @Produce      json
+// @Param        id path string true "Article ID"
+// @Success      200 {object} ArticleResponse
+// @Failure      404 {object} respond.ErrorResponse
+// @Router       /articles/{id}/publish [post]
 func (h *handler) publish(w http.ResponseWriter, r *http.Request) {
 	userID, _ := middleware.UserIDFromContext(r.Context())
 	id, ok := parseID(w, r)

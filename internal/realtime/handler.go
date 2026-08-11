@@ -21,6 +21,14 @@ func RegisterRoutes(r chi.Router, jwtSecret string) {
 	})
 }
 
+// streamDemo godoc
+// @Summary      Stream a demo Server-Sent Events response
+// @Tags         realtime
+// @Security     BearerAuth
+// @Produce      text/event-stream
+// @Success      200 {string} string "text/event-stream stream of `data: <word>` lines"
+// @Failure      500 {object} respond.ErrorResponse
+// @Router       /realtime/sse [get]
 func streamDemo(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {

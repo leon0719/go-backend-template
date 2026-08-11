@@ -13,10 +13,12 @@ const (
 	CodeRateLimited  = "rate_limited"
 )
 
-type errorBody struct {
+// ErrorResponse is the standard JSON error envelope returned by API
+// endpoints on failure: {"error":{"code":...,"message":...}}.
+type ErrorResponse struct {
 	Error struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
+		Code    string `json:"code" example:"validation_error"`
+		Message string `json:"message" example:"invalid request"`
 	} `json:"error"`
 }
 
@@ -27,7 +29,7 @@ func JSON(w http.ResponseWriter, status int, payload any) {
 }
 
 func Error(w http.ResponseWriter, status int, code, message string) {
-	body := errorBody{}
+	body := ErrorResponse{}
 	body.Error.Code = code
 	body.Error.Message = message
 	JSON(w, status, body)

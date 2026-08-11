@@ -1,0 +1,438 @@
+basePath: /api/v1
+definitions:
+  accounts.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  accounts.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  accounts.RegisterRequest:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 8
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  accounts.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+    type: object
+  accounts.UserResponse:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+    type: object
+  articles.ArticleResponse:
+    properties:
+      body:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+    type: object
+  articles.CreateArticleRequest:
+    properties:
+      body:
+        type: string
+      title:
+        type: string
+    required:
+    - title
+    type: object
+  articles.ListArticlesResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/articles.ArticleResponse'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  articles.UpdateArticleRequest:
+    properties:
+      body:
+        type: string
+      title:
+        type: string
+    type: object
+  respond.ErrorResponse:
+    properties:
+      error:
+        properties:
+          code:
+            example: validation_error
+            type: string
+          message:
+            example: invalid request
+            type: string
+        type: object
+    type: object
+info:
+  contact: {}
+  description: Example Go backend template API (accounts, articles, realtime).
+  title: go-backend-template API
+  version: "1.0"
+paths:
+  /articles:
+    get:
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size (max 100)
+        in: query
+        name: page_size
+        type: integer
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - description: Search title
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/articles.ListArticlesResponse'
+      security:
+      - BearerAuth: []
+      summary: List the caller's articles
+      tags:
+      - articles
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Article payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/articles.CreateArticleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/articles.ArticleResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create an article
+      tags:
+      - articles
+  /articles/{id}:
+    delete:
+      parameters:
+      - description: Article ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete an article
+      tags:
+      - articles
+    get:
+      parameters:
+      - description: Article ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/articles.ArticleResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get an article by ID
+      tags:
+      - articles
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Article ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Article payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/articles.UpdateArticleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/articles.ArticleResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update an article
+      tags:
+      - articles
+  /articles/{id}/publish:
+    post:
+      parameters:
+      - description: Article ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/articles.ArticleResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Publish an article
+      tags:
+      - articles
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Login payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/accounts.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/accounts.TokenResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+      summary: Log in with email and password
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      responses:
+        "204":
+          description: No Content
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Log out the current user
+      tags:
+      - auth
+  /auth/me:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/accounts.UserResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get the current authenticated user
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Refresh payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/accounts.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/accounts.TokenResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+      summary: Exchange a refresh token for a new token pair
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Registration payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/accounts.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/accounts.TokenResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+      summary: Register a new user
+      tags:
+      - auth
+  /health/live:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Liveness probe
+      tags:
+      - health
+  /health/ready:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Readiness probe (checks DB and Redis connectivity)
+      tags:
+      - health
+  /realtime/sse:
+    get:
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: 'text/event-stream stream of `data: <word>` lines'
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Stream a demo Server-Sent Events response
+      tags:
+      - realtime
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

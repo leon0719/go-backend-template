@@ -7,11 +7,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 
 	"go-backend-template/internal/accounts"
 	"go-backend-template/internal/articles"
 	"go-backend-template/internal/config"
 	"go-backend-template/internal/health"
+	_ "go-backend-template/internal/httpserver/docs"
 	"go-backend-template/internal/httpserver/middleware"
 	"go-backend-template/internal/realtime"
 )
@@ -32,6 +34,8 @@ func NewRouter(deps Deps) http.Handler {
 	r.Use(middleware.RequestID)
 
 	health.RegisterRoutes(r, deps.Pool, deps.Redis)
+
+	r.Get("/api/docs/*", httpSwagger.WrapHandler)
 
 	r.Route("/api/v1/auth", func(ar chi.Router) {
 		accounts.RegisterRoutes(ar, deps.AccountsSvc, deps.Config.JWTSecret, deps.AuthRateLimit)

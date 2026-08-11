@@ -36,6 +36,13 @@ const (
 	articlesWriteRateLimitWindow = 60 * time.Second
 )
 
+// @title           go-backend-template API
+// @version         1.0
+// @description     Example Go backend template API (accounts, articles, realtime).
+// @BasePath        /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in              header
+// @name            Authorization
 func main() {
 	cfg, err := config.Load()
 	if err != nil {

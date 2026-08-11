@@ -62,6 +62,16 @@ func decodeAndValidate[T any](w http.ResponseWriter, r *http.Request, dst *T) bo
 	return true
 }
 
+// register godoc
+// @Summary      Register a new user
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body body RegisterRequest true "Registration payload"
+// @Success      201 {object} TokenResponse
+// @Failure      422 {object} respond.ErrorResponse
+// @Failure      409 {object} respond.ErrorResponse
+// @Router       /auth/register [post]
 func (h *handler) register(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
 	if !decodeAndValidate(w, r, &req) {
@@ -80,6 +90,16 @@ func (h *handler) register(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, TokenResponse{AccessToken: access, RefreshToken: refresh})
 }
 
+// login godoc
+// @Summary      Log in with email and password
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body body LoginRequest true "Login payload"
+// @Success      200 {object} TokenResponse
+// @Failure      422 {object} respond.ErrorResponse
+// @Failure      401 {object} respond.ErrorResponse
+// @Router       /auth/login [post]
 func (h *handler) login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if !decodeAndValidate(w, r, &req) {
@@ -98,6 +118,16 @@ func (h *handler) login(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, TokenResponse{AccessToken: access, RefreshToken: refresh})
 }
 
+// refresh godoc
+// @Summary      Exchange a refresh token for a new token pair
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body body RefreshRequest true "Refresh payload"
+// @Success      200 {object} TokenResponse
+// @Failure      422 {object} respond.ErrorResponse
+// @Failure      401 {object} respond.ErrorResponse
+// @Router       /auth/refresh [post]
 func (h *handler) refresh(w http.ResponseWriter, r *http.Request) {
 	var req RefreshRequest
 	if !decodeAndValidate(w, r, &req) {
@@ -116,6 +146,13 @@ func (h *handler) refresh(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, TokenResponse{AccessToken: access, RefreshToken: refresh})
 }
 
+// logout godoc
+// @Summary      Log out the current user
+// @Tags         auth
+// @Security     BearerAuth
+// @Success      204 "No Content"
+// @Failure      500 {object} respond.ErrorResponse
+// @Router       /auth/logout [post]
 func (h *handler) logout(w http.ResponseWriter, r *http.Request) {
 	userID, _ := middleware.UserIDFromContext(r.Context())
 	if err := h.svc.Logout(r.Context(), userID); err != nil {
@@ -125,6 +162,14 @@ func (h *handler) logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// me godoc
+// @Summary      Get the current authenticated user
+// @Tags         auth
+// @Security     BearerAuth
+// @Produce      json
+// @Success      200 {object} UserResponse
+// @Failure      404 {object} respond.ErrorResponse
+// @Router       /auth/me [get]
 func (h *handler) me(w http.ResponseWriter, r *http.Request) {
 	userID, _ := middleware.UserIDFromContext(r.Context())
 	user, err := h.svc.Me(r.Context(), userID)
