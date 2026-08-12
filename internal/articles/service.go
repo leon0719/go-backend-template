@@ -47,10 +47,7 @@ func (s *Service) Get(ctx context.Context, id, userID uuid.UUID) (sqlc.Article, 
 const maxOffset int64 = 1_000_000
 
 func (s *Service) List(ctx context.Context, userID uuid.UUID, status, q string, page, pageSize int32) ([]sqlc.Article, int64, error) {
-	offset := (int64(page) - 1) * int64(pageSize)
-	if offset < 0 {
-		offset = 0
-	}
+	offset := max((int64(page)-1)*int64(pageSize), 0)
 	if offset > maxOffset {
 		offset = maxOffset
 	}
@@ -71,16 +68,6 @@ func (s *Service) Publish(ctx context.Context, id, userID uuid.UUID) (sqlc.Artic
 		return sqlc.Article{}, err
 	}
 	if transitioned {
-		// DUAL-WRITE GAP: the status change is already committed. If enqueue
-		// fails we must NOT report failure -- the publish genuinely
-		// succeeded, and returning 500 would invite a retry that sees
-		// transitioned == false and silently succeeds without ever sending
-		// the webhook. Log loudly instead so the loss is recoverable, and
-		// keep the caller's view of the world truthful.
-		//
-		// The real fix is a transactional outbox: write the task row in the
-		// same transaction as the status change and have a relay drain it.
-		// See docs/backend-standards.md.
 		if task, err := tasks.NewArticlePublishedTask(id.String()); err != nil {
 			slog.ErrorContext(ctx, "failed to build article-published task; webhook will not be sent",
 				"article_id", id, "error", err)
