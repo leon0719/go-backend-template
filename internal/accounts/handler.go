@@ -1,7 +1,6 @@
 package accounts
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -62,12 +61,9 @@ func (h *handler) register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	access, refresh, err := h.svc.Register(r.Context(), req.Email, req.Password)
-	if errors.Is(err, ErrEmailTaken) {
-		respond.Error(w, http.StatusConflict, respond.CodeConflict, "email already registered")
-		return
-	}
-	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, respond.CodeInternal, "registration failed")
+	if respond.MapError(w, err, respond.ErrMapping{
+		Target: ErrEmailTaken, Status: http.StatusConflict, Code: respond.CodeConflict, Message: "email already registered",
+	}) {
 		return
 	}
 	respond.JSON(w, http.StatusCreated, TokenResponse{AccessToken: access, RefreshToken: refresh})
@@ -90,12 +86,9 @@ func (h *handler) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	access, refresh, err := h.svc.Login(r.Context(), req.Email, req.Password)
-	if errors.Is(err, ErrInvalidCredentials) {
-		respond.Error(w, http.StatusUnauthorized, respond.CodeUnauthorized, "invalid email or password")
-		return
-	}
-	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, respond.CodeInternal, "login failed")
+	if respond.MapError(w, err, respond.ErrMapping{
+		Target: ErrInvalidCredentials, Status: http.StatusUnauthorized, Code: respond.CodeUnauthorized, Message: "invalid email or password",
+	}) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, TokenResponse{AccessToken: access, RefreshToken: refresh})
@@ -118,12 +111,9 @@ func (h *handler) refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	access, refresh, err := h.svc.Refresh(r.Context(), req.RefreshToken)
-	if errors.Is(err, ErrInvalidRefreshToken) {
-		respond.Error(w, http.StatusUnauthorized, respond.CodeUnauthorized, "invalid or expired refresh token")
-		return
-	}
-	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, respond.CodeInternal, "refresh failed")
+	if respond.MapError(w, err, respond.ErrMapping{
+		Target: ErrInvalidRefreshToken, Status: http.StatusUnauthorized, Code: respond.CodeUnauthorized, Message: "invalid or expired refresh token",
+	}) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, TokenResponse{AccessToken: access, RefreshToken: refresh})
@@ -138,8 +128,7 @@ func (h *handler) refresh(w http.ResponseWriter, r *http.Request) {
 // @Router       /auth/logout [post]
 func (h *handler) logout(w http.ResponseWriter, r *http.Request) {
 	userID, _ := middleware.UserIDFromContext(r.Context())
-	if err := h.svc.Logout(r.Context(), userID); err != nil {
-		respond.Error(w, http.StatusInternalServerError, respond.CodeInternal, "logout failed")
+	if respond.MapError(w, h.svc.Logout(r.Context(), userID)) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

@@ -1,7 +1,6 @@
 package articles
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -46,6 +45,16 @@ func RegisterRoutes(r chi.Router, svc *Service, jwtSecret string, writeRateLimit
 	})
 }
 
+// notFoundErr maps ErrNotFound to the 404 every handler below returns for
+// it. Not-found and not-owned are deliberately indistinguishable (see
+// service.go), so this single mapping covers both cases.
+var notFoundErr = respond.ErrMapping{
+	Target:  ErrNotFound,
+	Status:  http.StatusNotFound,
+	Code:    respond.CodeNotFound,
+	Message: "article not found",
+}
+
 type handler struct {
 	svc *Service
 }
@@ -82,8 +91,7 @@ func (h *handler) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a, err := h.svc.Create(r.Context(), userID, req.Title, req.Body, req.Summary)
-	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, respond.CodeInternal, "create failed")
+	if respond.MapError(w, err) {
 		return
 	}
 	respond.JSON(w, http.StatusCreated, toResponse(a))
@@ -106,12 +114,7 @@ func (h *handler) get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a, err := h.svc.Get(r.Context(), id, userID)
-	if errors.Is(err, ErrNotFound) {
-		respond.Error(w, http.StatusNotFound, respond.CodeNotFound, "article not found")
-		return
-	}
-	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, respond.CodeInternal, "get failed")
+	if respond.MapError(w, err, notFoundErr) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, toResponse(a))
@@ -160,8 +163,7 @@ func (h *handler) list(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 
 	items, total, err := h.svc.List(r.Context(), userID, status, q, page, pageSize)
-	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, respond.CodeInternal, "list failed")
+	if respond.MapError(w, err) {
 		return
 	}
 
@@ -197,12 +199,7 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a, err := h.svc.Update(r.Context(), id, userID, req.Title, req.Body, req.Summary)
-	if errors.Is(err, ErrNotFound) {
-		respond.Error(w, http.StatusNotFound, respond.CodeNotFound, "article not found")
-		return
-	}
-	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, respond.CodeInternal, "update failed")
+	if respond.MapError(w, err, notFoundErr) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, toResponse(a))
@@ -224,12 +221,7 @@ func (h *handler) delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := h.svc.Delete(r.Context(), id, userID)
-	if errors.Is(err, ErrNotFound) {
-		respond.Error(w, http.StatusNotFound, respond.CodeNotFound, "article not found")
-		return
-	}
-	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, respond.CodeInternal, "delete failed")
+	if respond.MapError(w, err, notFoundErr) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -252,12 +244,7 @@ func (h *handler) publish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a, err := h.svc.Publish(r.Context(), id, userID)
-	if errors.Is(err, ErrNotFound) {
-		respond.Error(w, http.StatusNotFound, respond.CodeNotFound, "article not found")
-		return
-	}
-	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, respond.CodeInternal, "publish failed")
+	if respond.MapError(w, err, notFoundErr) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, toResponse(a))
