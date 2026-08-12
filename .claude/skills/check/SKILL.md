@@ -33,8 +33,8 @@ match it before concluding CI is wrong.
 ## 3. Tests
 
 ```bash
-go test ./...                    # unit; no Docker needed
-go test -tags=integration ./...  # spins up Postgres/Redis via testcontainers
+go test -race ./...                    # unit; no Docker needed
+go test -race -tags=integration ./...  # spins up Postgres/Redis via testcontainers
 ```
 
 On colima the integration run needs the daemon pointed out explicitly, or it fails with
@@ -56,6 +56,15 @@ swag init -g cmd/api/main.go -o internal/httpserver/docs && git diff --exit-code
 
 **Only meaningful against committed work.** Run before committing and they always report a
 diff — that is your own uncommitted change, not drift.
+
+## 5. Vulnerability scan
+
+```bash
+govulncheck ./...
+```
+
+CI runs this as a separate step; a known-vulnerable dependency should be flagged here, not
+discovered post-merge.
 
 ## Reporting
 

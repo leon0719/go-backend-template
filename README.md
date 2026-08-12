@@ -15,7 +15,7 @@ A production-ready Go backend REST API template with an asynq/Redis task queue, 
 | Auth          | JWT access token + DB-backed refresh token     |
 | API docs      | swaggo/swag (Swagger UI at `/api/docs`)        |
 | Logging       | log/slog                                       |
-| Tooling       | gofmt, golangci-lint, go vet, go test          |
+| Tooling       | gofmt, golangci-lint, go vet, go test -race, govulncheck |
 
 ## Quick Start (Docker)
 

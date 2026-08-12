@@ -145,8 +145,9 @@ func (h *handler) logout(w http.ResponseWriter, r *http.Request) {
 func (h *handler) me(w http.ResponseWriter, r *http.Request) {
 	userID, _ := middleware.UserIDFromContext(r.Context())
 	user, err := h.svc.Me(r.Context(), userID)
-	if err != nil {
-		respond.Error(w, http.StatusNotFound, respond.CodeNotFound, "user not found")
+	if respond.MapError(w, err, respond.ErrMapping{
+		Target: ErrNotFound, Status: http.StatusNotFound, Code: respond.CodeNotFound, Message: "user not found",
+	}) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, UserResponse{ID: user.ID.String(), Email: user.Email})
