@@ -31,7 +31,7 @@ func ParseAccessToken(secret, tokenStr string) (uuid.UUID, error) {
 	// (e.g. a token signed HS256 using an RS256 *public* key as the secret).
 	// jwt/v5 already blocks `alg: none`, but this pin is what keeps the
 	// template safe if someone later swaps in an asymmetric algorithm.
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
 		return []byte(secret), nil
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 	if err != nil || !token.Valid {

@@ -17,9 +17,12 @@ linters:
     - errorlint # %w / errors.Is-As correctness
     - gocritic
     - gosec # security-focused checks (G114 timeouts, G404 weak rand, ...)
+    - makezero # make([]T, n) followed by append — off-by-len-n bugs
     - misspell
+    - modernize # nudges toward current Go idioms (any, slices, maps, ...)
     - nilerr # `if err != nil { return nil }` — silently swallowed errors
     - noctx # HTTP requests without a context
+    - predeclared # shadowing builtins like len, cap, new, min, max
     - revive
     - unconvert
     - usestdlibvars

@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strings"
 )
 
@@ -72,8 +73,8 @@ func resolveClientIP(r *http.Request, trustedProxies []netip.Prefix) string {
 	// Peer is a trusted proxy: walk X-Forwarded-For right-to-left and take
 	// the first hop that is not itself a trusted proxy.
 	hops := forwardedHops(r)
-	for i := len(hops) - 1; i >= 0; i-- {
-		addr, err := netip.ParseAddr(hops[i])
+	for _, hop := range slices.Backward(hops) {
+		addr, err := netip.ParseAddr(hop)
 		if err != nil {
 			continue
 		}
@@ -88,7 +89,7 @@ func resolveClientIP(r *http.Request, trustedProxies []netip.Prefix) string {
 func forwardedHops(r *http.Request) []string {
 	var hops []string
 	for _, header := range r.Header.Values("X-Forwarded-For") {
-		for _, part := range strings.Split(header, ",") {
+		for part := range strings.SplitSeq(header, ",") {
 			part = strings.TrimSpace(part)
 			if part == "" {
 				continue

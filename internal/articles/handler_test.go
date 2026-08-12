@@ -87,7 +87,7 @@ func TestHandler_GetArticle_NotOwned_Returns404(t *testing.T) {
 func TestHandler_ListArticles_Pagination(t *testing.T) {
 	r, token := setupArticlesRouter(t)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		body, _ := json.Marshal(CreateArticleRequest{Title: "T", Body: "B"})
 		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
 		req.Header.Set("Authorization", "Bearer "+token)

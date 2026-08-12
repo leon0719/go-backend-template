@@ -207,7 +207,7 @@ func TestRouter_PanicIsRecordedInAccessLog(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 
 	var sawPanic, sawAccess bool
-	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(logs.String()), "\n") {
 		if line == "" {
 			continue
 		}

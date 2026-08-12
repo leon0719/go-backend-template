@@ -49,7 +49,10 @@ const maxOffset int64 = 1_000_000
 
 func (s *Service) List(ctx context.Context, userID uuid.UUID, status, q string, page, pageSize int32) ([]sqlc.Article, int64, error) {
 	offset := max((int64(page)-1)*int64(pageSize), 0)
-	if offset > maxOffset {
+	// Deliberately an if, not min(): gosec's G115 overflow check can't follow
+	// the bound through min(), so it flags the int32 conversion below as an
+	// unchecked overflow.
+	if offset > maxOffset { //nolint:modernize
 		offset = maxOffset
 	}
 	return s.repo.ListOwned(ctx, userID, status, q, pageSize, int32(offset))

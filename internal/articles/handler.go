@@ -125,7 +125,7 @@ func (h *handler) get(w http.ResponseWriter, r *http.Request) {
 // defaultVal on parse failure or when the value is below min. Page/pageSize
 // must never be allowed to reach the service as <= 0, since the service
 // computes a raw SQL OFFSET from them without validation.
-func clampInt(raw string, defaultVal, min, max int32) int32 {
+func clampInt(raw string, defaultVal, minVal, maxVal int32) int32 {
 	// bitSize 32 makes an out-of-int32-range value an error rather than a
 	// silent wrap: strconv.Atoi + int32(...) would turn 2147483648 into a
 	// negative page that sails past the min check below.
@@ -134,11 +134,11 @@ func clampInt(raw string, defaultVal, min, max int32) int32 {
 		return defaultVal
 	}
 	n := int32(v)
-	if n < min {
+	if n < minVal {
 		return defaultVal
 	}
-	if max > 0 && n > max {
-		return max
+	if maxVal > 0 && n > maxVal {
+		return maxVal
 	}
 	return n
 }

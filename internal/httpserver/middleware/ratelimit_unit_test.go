@@ -16,7 +16,7 @@ import (
 // output stays pristine; we assert on our own slog line separately.
 type discardLogger struct{}
 
-func (discardLogger) Printf(context.Context, string, ...interface{}) {}
+func (discardLogger) Printf(context.Context, string, ...any) {}
 
 // TestRateLimit_FailsOpenOnRedisError verifies that when the backing Redis
 // store is unreachable, the middleware logs the error and allows the
