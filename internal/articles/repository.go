@@ -2,10 +2,13 @@ package articles
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"go-backend-template/internal/db"
 	"go-backend-template/internal/db/dberr"
 	"go-backend-template/internal/db/sqlc"
 )
@@ -15,12 +18,20 @@ import (
 // definition lives in dberr and is shared with every other app.
 var ErrNotFound = dberr.ErrNotFound
 
+// ErrAlreadyArchived means the article_events row for this archive already
+// exists -- see ArchiveWithEvent.
+var ErrAlreadyArchived = errors.New("article already archived")
+
 type Repository struct {
-	q *sqlc.Queries
+	pool *pgxpool.Pool
+	q    *sqlc.Queries
 }
 
-func NewRepository(q *sqlc.Queries) *Repository {
-	return &Repository{q: q}
+// NewRepository takes the pool rather than a *sqlc.Queries because
+// ArchiveWithEvent needs to open its own transaction (pool.Begin), not just
+// run queries against whatever DBTX the caller already wrapped.
+func NewRepository(pool *pgxpool.Pool) *Repository {
+	return &Repository{pool: pool, q: sqlc.New(pool)}
 }
 
 func textFromPtr(s *string) pgtype.Text {
@@ -82,4 +93,38 @@ func (r *Repository) PublishIfDraft(ctx context.Context, id, userID uuid.UUID) (
 		return false, err
 	}
 	return rows > 0, nil
+}
+
+// ArchiveWithEvent demonstrates the Django-`transaction.atomic()` pattern:
+// two writes to the SAME database, wrapped in one transaction via the shared
+// db.WithinTx helper so they commit or roll back together.
+//
+// Contrast with articles.Service.Publish (docs/backend-standards.md, "Dual
+// writes"): that one straddles Postgres AND Redis/asynq, which a database
+// transaction cannot span -- there the dual-write gap is accepted and
+// documented instead. Here both writes are Postgres, so there is no excuse
+// not to make them atomic.
+func (r *Repository) ArchiveWithEvent(ctx context.Context, id, userID uuid.UUID) error {
+	return db.WithinTx(ctx, r.pool, func(qtx *sqlc.Queries) error {
+		rows, err := qtx.ArchiveArticle(ctx, sqlc.ArchiveArticleParams{ID: id, UserID: userID})
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			// Not found, not owned, or already archived -- all indistinguishable
+			// from outside, same as every other method in this file.
+			return ErrNotFound
+		}
+
+		if err := qtx.CreateArticleEvent(ctx, sqlc.CreateArticleEventParams{ArticleID: id, EventType: "archived"}); err != nil {
+			if dberr.IsUniqueViolation(err) {
+				// A duplicate archive event for this article. Returning here
+				// rolls back the ArchiveArticle UPDATE above too -- the
+				// article is left exactly as it was, not half-archived.
+				return ErrAlreadyArchived
+			}
+			return err
+		}
+		return nil
+	})
 }

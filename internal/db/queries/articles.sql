@@ -35,3 +35,10 @@ DELETE FROM articles WHERE id = $1 AND user_id = $2;
 -- name: PublishArticleIfDraft :execrows
 UPDATE articles SET status = 'published', updated_at = now()
 WHERE id = $1 AND user_id = $2 AND status = 'draft';
+
+-- name: ArchiveArticle :execrows
+UPDATE articles SET status = 'archived', updated_at = now()
+WHERE id = $1 AND user_id = $2 AND status != 'archived';
+
+-- name: CreateArticleEvent :exec
+INSERT INTO article_events (article_id, event_type) VALUES ($1, $2);

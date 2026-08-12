@@ -12,7 +12,6 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"go-backend-template/internal/db"
-	"go-backend-template/internal/db/sqlc"
 )
 
 func setupArticlesRepo(t *testing.T) (*Repository, uuid.UUID) {
@@ -47,7 +46,7 @@ func setupArticlesRepo(t *testing.T) (*Repository, uuid.UUID) {
 	var userID uuid.UUID
 	require.NoError(t, pool.QueryRow(ctx, `INSERT INTO users (email, password_hash) VALUES ('a@example.com', 'x') RETURNING id`).Scan(&userID))
 
-	return NewRepository(sqlc.New(pool)), userID
+	return NewRepository(pool), userID
 }
 
 func TestRepository_CreateGetListUpdateDelete(t *testing.T) {
@@ -95,6 +94,48 @@ func TestRepository_PublishIfDraft_OnlyPublishesOnce(t *testing.T) {
 	publishedAgain, err := repo.PublishIfDraft(ctx, created.ID, userID)
 	require.NoError(t, err)
 	assert.False(t, publishedAgain)
+}
+
+func TestRepository_ArchiveWithEvent_CommitsBothWrites(t *testing.T) {
+	repo, userID := setupArticlesRepo(t)
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, userID, "Title", "Body", "")
+	require.NoError(t, err)
+
+	require.NoError(t, repo.ArchiveWithEvent(ctx, created.ID, userID))
+
+	got, err := repo.GetOwned(ctx, created.ID, userID)
+	require.NoError(t, err)
+	assert.Equal(t, "archived", got.Status)
+}
+
+// TestRepository_ArchiveWithEvent_RollsBackStatusWhenEventInsertFails is the
+// atomicity demo: a pre-existing article_events row (simulating whatever
+// business condition should have blocked this archive) makes the INSERT
+// inside ArchiveWithEvent fail on the UNIQUE constraint *after* the UPDATE
+// has already run against the transaction. Without a real transaction the
+// UPDATE would still be committed, leaving the article archived with no
+// audit row. Because both statements run through the same pgx.Tx, the failed
+// INSERT rolls the UPDATE back too -- the article is left exactly as it was.
+func TestRepository_ArchiveWithEvent_RollsBackStatusWhenEventInsertFails(t *testing.T) {
+	repo, userID := setupArticlesRepo(t)
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, userID, "Title", "Body", "")
+	require.NoError(t, err)
+	require.Equal(t, "draft", created.Status)
+
+	_, err = repo.pool.Exec(ctx,
+		`INSERT INTO article_events (article_id, event_type) VALUES ($1, 'archived')`, created.ID)
+	require.NoError(t, err)
+
+	err = repo.ArchiveWithEvent(ctx, created.ID, userID)
+	require.ErrorIs(t, err, ErrAlreadyArchived)
+
+	got, err := repo.GetOwned(ctx, created.ID, userID)
+	require.NoError(t, err)
+	assert.Equal(t, "draft", got.Status, "the UPDATE must have rolled back along with the failed INSERT")
 }
 
 func TestRepository_SummaryRoundTrips(t *testing.T) {

@@ -20,6 +20,13 @@ type Article struct {
 	Summary   string             `json:"summary"`
 }
 
+type ArticleEvent struct {
+	ID        uuid.UUID          `json:"id"`
+	ArticleID uuid.UUID          `json:"article_id"`
+	EventType string             `json:"event_type"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type RefreshToken struct {
 	ID          uuid.UUID          `json:"id"`
 	UserID      uuid.UUID          `json:"user_id"`

@@ -87,6 +87,7 @@ docker/         # Dockerfiles + compose files (dev/prod) + Caddyfile
 | PATCH  | `/api/v1/articles/{id}`            | Bearer | Partial update; rate-limited per user      |
 | DELETE | `/api/v1/articles/{id}`            | Bearer | 204 on success; rate-limited per user      |
 | POST   | `/api/v1/articles/{id}/publish`    | Bearer | Publishes + enqueues webhook task; rate-limited per user |
+| POST   | `/api/v1/articles/{id}/archive`    | Bearer | Archives + writes an audit event atomically in one DB transaction; rate-limited per user |
 | GET    | `/api/v1/realtime/sse`             | Bearer | SSE demo stream                            |
 | GET    | `/health/live`                     | —      | Liveness probe; unversioned, excluded from Swagger spec |
 | GET    | `/health/ready`                    | —      | Readiness probe (checks DB + Redis); unversioned, excluded from Swagger spec |

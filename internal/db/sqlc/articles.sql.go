@@ -12,6 +12,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const archiveArticle = `-- name: ArchiveArticle :execrows
+UPDATE articles SET status = 'archived', updated_at = now()
+WHERE id = $1 AND user_id = $2 AND status != 'archived'
+`
+
+type ArchiveArticleParams struct {
+	ID     uuid.UUID `json:"id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) ArchiveArticle(ctx context.Context, arg ArchiveArticleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, archiveArticle, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countOwnedArticles = `-- name: CountOwnedArticles :one
 SELECT count(*) FROM articles
 WHERE user_id = $1
@@ -64,6 +82,20 @@ func (q *Queries) CreateArticle(ctx context.Context, arg CreateArticleParams) (A
 		&i.Summary,
 	)
 	return i, err
+}
+
+const createArticleEvent = `-- name: CreateArticleEvent :exec
+INSERT INTO article_events (article_id, event_type) VALUES ($1, $2)
+`
+
+type CreateArticleEventParams struct {
+	ArticleID uuid.UUID `json:"article_id"`
+	EventType string    `json:"event_type"`
+}
+
+func (q *Queries) CreateArticleEvent(ctx context.Context, arg CreateArticleEventParams) error {
+	_, err := q.db.Exec(ctx, createArticleEvent, arg.ArticleID, arg.EventType)
+	return err
 }
 
 const deleteArticle = `-- name: DeleteArticle :execrows

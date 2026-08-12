@@ -100,6 +100,19 @@ func (f *fakeArticlesRepo) PublishIfDraft(ctx context.Context, id, userID uuid.U
 	return true, nil
 }
 
+func (f *fakeArticlesRepo) ArchiveWithEvent(ctx context.Context, id, userID uuid.UUID) error {
+	a, ok := f.items[id]
+	if !ok || a.UserID != userID {
+		return ErrNotFound
+	}
+	if a.Status == "archived" {
+		return ErrAlreadyArchived
+	}
+	a.Status = "archived"
+	f.items[id] = a
+	return nil
+}
+
 func TestService_Publish_EnqueuesTaskOnlyOnTransition(t *testing.T) {
 	repo := newFakeArticlesRepo()
 	var enqueued []*asynq.Task
@@ -153,6 +166,23 @@ func TestService_Publish_EnqueueFailureStillSucceeds(t *testing.T) {
 	got, err := svc.Publish(ctx, created.ID, userID)
 	require.NoError(t, err)
 	assert.Equal(t, "published", got.Status)
+}
+
+func TestService_Archive_TwiceReturnsAlreadyArchived(t *testing.T) {
+	repo := newFakeArticlesRepo()
+	svc := NewService(repo, func(*asynq.Task) error { return nil })
+
+	ctx := context.Background()
+	userID := uuid.New()
+	created, err := svc.Create(ctx, userID, "T", "B", "")
+	require.NoError(t, err)
+
+	got, err := svc.Archive(ctx, created.ID, userID)
+	require.NoError(t, err)
+	assert.Equal(t, "archived", got.Status)
+
+	_, err = svc.Archive(ctx, created.ID, userID)
+	assert.ErrorIs(t, err, ErrAlreadyArchived)
 }
 
 func TestService_List_HugePageDoesNotOverflowOffset(t *testing.T) {

@@ -122,7 +122,7 @@ func main() {
 	accountsSvc := accounts.NewService(accountsRepo, cfg.JWTSecret)
 	authRateLimiter := middleware.NewRateLimiter(rdb, authRateLimit, authRateLimitWindow)
 
-	articlesRepo := articles.NewRepository(sqlc.New(pool))
+	articlesRepo := articles.NewRepository(pool)
 	articlesSvc := articles.NewService(articlesRepo, func(task *asynq.Task) error {
 		_, err := asynqClient.Enqueue(task)
 		return err

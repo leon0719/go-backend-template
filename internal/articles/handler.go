@@ -42,6 +42,7 @@ func RegisterRoutes(r chi.Router, svc *Service, jwtSecret string, writeRateLimit
 		wr.Patch("/{id}", h.update)
 		wr.Delete("/{id}", h.delete)
 		wr.Post("/{id}/publish", h.publish)
+		wr.Post("/{id}/archive", h.archive)
 	})
 }
 
@@ -245,6 +246,33 @@ func (h *handler) publish(w http.ResponseWriter, r *http.Request) {
 
 	a, err := h.svc.Publish(r.Context(), id, userID)
 	if respond.MapError(w, err, notFoundErr) {
+		return
+	}
+	respond.JSON(w, http.StatusOK, toResponse(a))
+}
+
+// archive godoc
+// @Summary      Archive an article
+// @Description  Demonstrates a single-database atomic transaction (see Repository.ArchiveWithEvent): the status update and its audit event either both commit or both roll back.
+// @Tags         articles
+// @Security     BearerAuth
+// @Produce      json
+// @Param        id path string true "Article ID"
+// @Success      200 {object} ArticleResponse
+// @Failure      404 {object} respond.ErrorResponse
+// @Failure      409 {object} respond.ErrorResponse
+// @Router       /articles/{id}/archive [post]
+func (h *handler) archive(w http.ResponseWriter, r *http.Request) {
+	userID, _ := middleware.UserIDFromContext(r.Context())
+	id, ok := parseID(w, r)
+	if !ok {
+		return
+	}
+
+	a, err := h.svc.Archive(r.Context(), id, userID)
+	if respond.MapError(w, err, notFoundErr, respond.ErrMapping{
+		Target: ErrAlreadyArchived, Status: http.StatusConflict, Code: respond.CodeConflict, Message: "article already archived",
+	}) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, toResponse(a))

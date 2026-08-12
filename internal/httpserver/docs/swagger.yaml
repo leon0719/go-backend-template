@@ -244,6 +244,36 @@ paths:
       summary: Update an article
       tags:
       - articles
+  /articles/{id}/archive:
+    post:
+      description: 'Demonstrates a single-database atomic transaction (see Repository.ArchiveWithEvent):
+        the status update and its audit event either both commit or both roll back.'
+      parameters:
+      - description: Article ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/articles.ArticleResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/respond.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Archive an article
+      tags:
+      - articles
   /articles/{id}/publish:
     post:
       parameters:

@@ -18,6 +18,7 @@ type articlesRepository interface {
 	Update(ctx context.Context, id, userID uuid.UUID, title, body, summary *string) (sqlc.Article, error)
 	Delete(ctx context.Context, id, userID uuid.UUID) error
 	PublishIfDraft(ctx context.Context, id, userID uuid.UUID) (bool, error)
+	ArchiveWithEvent(ctx context.Context, id, userID uuid.UUID) error
 }
 
 var _ articlesRepository = (*Repository)(nil)
@@ -75,6 +76,16 @@ func (s *Service) Publish(ctx context.Context, id, userID uuid.UUID) (sqlc.Artic
 			slog.ErrorContext(ctx, "failed to enqueue article-published task; webhook will not be sent",
 				"article_id", id, "error", err)
 		}
+	}
+	return s.repo.GetOwned(ctx, id, userID)
+}
+
+// Archive marks the article archived and writes an audit event in a single
+// database transaction (see Repository.ArchiveWithEvent) -- unlike Publish,
+// there is no cross-system step here, so this one has no dual-write gap.
+func (s *Service) Archive(ctx context.Context, id, userID uuid.UUID) (sqlc.Article, error) {
+	if err := s.repo.ArchiveWithEvent(ctx, id, userID); err != nil {
+		return sqlc.Article{}, err
 	}
 	return s.repo.GetOwned(ctx, id, userID)
 }
