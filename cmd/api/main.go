@@ -61,6 +61,7 @@ const (
 // @securityDefinitions.apikey BearerAuth
 // @in              header
 // @name            Authorization
+// @description     Type "Bearer" followed by a space and the JWT access token, e.g. "Bearer eyJhbGc...". Swagger UI does not add the "Bearer " prefix automatically.
 // healthcheckFlag, when passed as the process's first argument, makes the
 // binary act as a one-shot health probe instead of starting the server: it
 // GETs its own /health/live endpoint and exits 0/1 accordingly. This exists

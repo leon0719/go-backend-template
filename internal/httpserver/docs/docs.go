@@ -697,6 +697,7 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "BearerAuth": {
+            "description": "Type \"Bearer\" followed by a space and the JWT access token, e.g. \"Bearer eyJhbGc...\". Swagger UI does not add the \"Bearer \" prefix automatically.",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
